@@ -20,6 +20,8 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'name',
+        'nip',
+        'phone',
         'email',
         'password',
     ];
@@ -48,5 +50,26 @@ class User extends Authenticatable
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
         ];
+    }
+
+    // Eloquent Relationships to Sales Models
+    public function salesAttendances()
+    {
+        return $this->hasMany(SalesAttendance::class);
+    }
+
+    public function salesVisits()
+    {
+        return $this->hasMany(SalesVisit::class);
+    }
+
+    public function salesGpsLogs()
+    {
+        return $this->hasMany(SalesGpsLog::class);
+    }
+
+    public function salesAreas()
+    {
+        return $this->belongsToMany(SalesArea::class, 'sales_area_user');
     }
 }
