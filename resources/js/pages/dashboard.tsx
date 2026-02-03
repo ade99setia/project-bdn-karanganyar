@@ -57,13 +57,14 @@ interface Props {
     user: {
         name: string;
     };
+    serverTime: string;
 }
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Dashboard', href: dashboard().url }];
 
-export default function Dashboard({ attendanceToday, recentVisits, user }: Props) {
+export default function Dashboard({ attendanceToday, recentVisits, user, serverTime }: Props & { serverTime: string }) {
     const [processing, setProcessing] = useState(false);
-    const [currentTime, setCurrentTime] = useState(new Date());
+    const [currentTime, setCurrentTime] = useState(new Date(serverTime));
     const [openVisit, setOpenVisit] = useState(false);
     const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
 
@@ -88,7 +89,10 @@ export default function Dashboard({ attendanceToday, recentVisits, user }: Props
     const prevPage = () => setCurrentPage((prev) => Math.max(prev - 1, 1));
 
     useEffect(() => {
-        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+        const timer = setInterval(() => {
+            setCurrentTime(prev => new Date(prev.getTime() + 1000));
+        }, 1000);
+
         return () => clearInterval(timer);
     }, []);
 
@@ -107,12 +111,6 @@ export default function Dashboard({ attendanceToday, recentVisits, user }: Props
             minute: '2-digit',
             second: '2-digit',
         });
-
-    const formatTimeOnly = (timeStr?: string | null) => {
-        if (!timeStr) return '—';
-        const match = timeStr.match(/(\d{2}:\d{2}:\d{2})/);
-        return match ? match[1] : '—';
-    };
 
     const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -134,88 +132,135 @@ export default function Dashboard({ attendanceToday, recentVisits, user }: Props
         }
     };
 
-    const requestLocation = (onSuccess: (pos: GeolocationPosition) => void) => {
-        if (!navigator.geolocation) return alert('Geolocation tidak didukung');
-
-        setProcessing(true);
-        navigator.geolocation.getCurrentPosition(
-            onSuccess,
-            (err) => {
-                setProcessing(false);
-                const messages = {
-                    1: 'Izin lokasi ditolak',
-                    2: 'Lokasi tidak dapat ditentukan',
-                    3: 'Permintaan lokasi timeout',
-                };
-                alert(messages[err.code as keyof typeof messages] || 'Gagal mendapatkan lokasi');
-            },
-            { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+    const getXsrfToken = () =>
+        decodeURIComponent(
+            document.cookie
+                .split('; ')
+                .find(row => row.startsWith('XSRF-TOKEN='))
+                ?.split('=')[1] || ''
         );
 
-    };
 
     const handleCheckInOut = (type: 'in' | 'out') => {
+        setProcessing(true);
 
-        navigator.geolocation.getCurrentPosition(async (pos) => {
-            const { latitude, longitude } = pos.coords;
+        navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+                const { latitude, longitude } = pos.coords;
 
-            const res = await fetch(
-                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
-            );
+                try {
+                    const geo = await fetch('/utils/reverse-geocode', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-XSRF-TOKEN': getXsrfToken(),
+                        },
+                        body: JSON.stringify({
+                            lat: latitude,
+                            lng: longitude,
+                        }),
+                    });
 
-            const data = await res.json();
-            const address = data.display_name || 'Lokasi tidak ditemukan';
+                    const { address } = await geo.json();
 
-            requestLocation((pos) => {
-                router.post(
-                    `/attendance/check-${type}`,
-                    { lat: pos.coords.latitude, lng: pos.coords.longitude, device_id: 'web', [`check_${type}_address`]: address },
-                    { preserveScroll: true, onFinish: () => setProcessing(false) }
-                );
-            });
-        });
+                    router.post(
+                        `/attendance/check-${type}`,
+                        {
+                            lat: latitude,
+                            lng: longitude,
+                            device_id: 'web',
+                            [`check_${type}_address`]: address ?? 'Lokasi tidak ditemukan',
+                        },
+                        {
+                            preserveScroll: true,
+                            onFinish: () => setProcessing(false),
+                        }
+                    );
+                } catch {
+                    setProcessing(false);
+                    alert('Gagal mengambil alamat lokasi');
+                }
+            },
+            () => {
+                setProcessing(false);
+                alert('Izin lokasi ditolak');
+            }
+        );
     };
+
 
     const submitVisitReport = () => {
         if (!photo) return alert('Foto bukti wajib diunggah');
-        navigator.geolocation.getCurrentPosition(async (pos) => {
-            const { latitude, longitude } = pos.coords;
 
-            const res = await fetch(
-                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
-            );
+        setProcessing(true);
 
-            const data = await res.json();
-            const address = data.display_name || 'Lokasi tidak ditemukan';
+        navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+                const { latitude, longitude } = pos.coords;
 
-            requestLocation((pos) => {
-                router.post(
-                    '/visits',
-                    {
-                        activity_type: visitType,
-                        description,
-                        lat: pos.coords.latitude,
-                        lng: pos.coords.longitude,
-                        photo,
-                        address,
-                    },
-                    {
-                        forceFormData: true,
-                        onSuccess: () => {
-                            setOpenVisit(false);
-                            setDescription('');
-                            setPhoto(null);
-                            setVisitType('visit');
+                try {
+                    const geo = await fetch('/utils/reverse-geocode', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-XSRF-TOKEN': getXsrfToken(),
                         },
-                        onFinish: () => setProcessing(false),
-                    }
-                );
-            });
-        });
+                        body: JSON.stringify({
+                            lat: latitude,
+                            lng: longitude,
+                        }),
+                    });
+
+                    const { address } = await geo.json();
+
+                    router.post(
+                        '/visits',
+                        {
+                            activity_type: visitType,
+                            description,
+                            lat: latitude,
+                            lng: longitude,
+                            photo,
+                            address: address ?? 'Lokasi tidak ditemukan',
+                        },
+                        {
+                            forceFormData: true,
+                            onSuccess: () => {
+                                setOpenVisit(false);
+                                setDescription('');
+                                setPhoto(null);
+                                setVisitType('visit');
+                            },
+                            onFinish: () => setProcessing(false),
+                        }
+                    );
+                } catch {
+                    setProcessing(false);
+                    alert('Gagal mengambil alamat lokasi');
+                }
+            },
+            () => {
+                setProcessing(false);
+                alert('Izin lokasi ditolak');
+            }
+        );
     };
 
     const isCheckedIn = !!attendanceToday;
     const isCheckedOut = isCheckedIn && !!attendanceToday.check_out_at;
+
+    const parseWIB = (timeStr: string) =>
+        new Date(timeStr.replace(' ', 'T'));
+
+    const formatTimeOnly = (timeStr?: string | null) => {
+        if (!timeStr) return '—';
+        return parseWIB(timeStr).toLocaleTimeString('id-ID', {
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+        });
+    };
 
     const calculateDuration = (
         checkInStr: string | null | undefined,
@@ -224,22 +269,22 @@ export default function Dashboard({ attendanceToday, recentVisits, user }: Props
     ) => {
         if (!checkInStr) return "--:--:--";
 
-        const start = new Date(checkInStr).getTime();
-        // Jika sudah checkout, pakai waktu checkout. Jika belum, pakai waktu sekarang (realtime).
-        const end = checkOutStr ? new Date(checkOutStr).getTime() : now.getTime();
+        const start = parseWIB(checkInStr).getTime();
+        const end = checkOutStr
+            ? parseWIB(checkOutStr).getTime()
+            : now.getTime();
 
-        const diff = end - start;
+        const diff = Math.max(0, end - start);
 
-        // Validasi jika waktu negatif (opsional)
-        if (diff < 0) return "00:00:00";
+        const hours = Math.floor(diff / 3_600_000);
+        const minutes = Math.floor((diff % 3_600_000) / 60_000);
+        const seconds = Math.floor((diff % 60_000) / 1_000);
 
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-        // Format 00:00:00
-        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        return `${hours.toString().padStart(2, '0')}:${minutes
+            .toString()
+            .padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     };
+
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
