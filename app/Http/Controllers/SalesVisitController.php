@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use App\Models\SalesAttendance;
 use App\Models\SalesVisit;
 use App\Models\SalesVisitPhoto;
+use App\Models\Customer; // Pastikan Model Customer di-import
 
 class SalesVisitController extends Controller
 {
@@ -15,12 +16,28 @@ class SalesVisitController extends Controller
     {
         // 1. Validasi input
         $validated = $request->validate([
+            // --- Validasi Visit Basic ---
             'activity_type' => 'required|string',
             'description'   => 'nullable|string',
             'lat'           => 'required|numeric',
             'lng'           => 'required|numeric',
             'address'       => 'nullable|string',
-            'photo'         => 'required|image|max:10240',
+            'photo'         => 'required|image|max:10240', // Max 10MB
+
+            // --- Validasi Array Produk ---
+            'products'               => 'nullable|array',
+            'products.*.product_id'  => 'required|exists:products,id',
+            'products.*.quantity'    => 'required|integer|min:1',
+            'products.*.action_type' => 'required|string|in:sold,offered,sample,returned',
+            'products.*.note'        => 'nullable|string',
+
+            // --- Validasi Customer ---
+            'customer_mode' => 'required|in:database,manual',
+            'customer_id'   => 'nullable|required_if:customer_mode,database|exists:customers,id',
+            'customer_name' => 'nullable|required_if:customer_mode,manual|string|max:255',
+            'customer_note' => 'nullable|string|max:500',
+            'customer_phone' => 'nullable|string|max:20',
+            'customer_email' => 'nullable|email|max:100',
         ]);
 
         $user  = Auth::user();
@@ -32,53 +49,97 @@ class SalesVisitController extends Controller
             ->first();
 
         if (!$attendance) {
-            return back()->withErrors([
-                'message' => 'Anda harus check-in presensi terlebih dahulu.'
-            ]);
+            return back()->withErrors(['message' => 'Anda harus check-in presensi terlebih dahulu.']);
         }
 
-        DB::transaction(function () use ($validated, $user, $attendance) {
+        // 3. Mulai Transaksi Database
+        try {
+            DB::transaction(function () use ($validated, $user, $attendance, $request) {
 
-            $lat = $validated['lat'];
-            $lng = $validated['lng'];
+                $lat = $validated['lat'];
+                $lng = $validated['lng'];
+                $address = $validated['address'] ?? "Koordinat: {$lat}, {$lng}";
 
-            // 3. Alamat simpel (fallback koordinat)
-            $address = $validated['address']
-                ?? "Koordinat: {$lat}, {$lng}";
+                // === A. LOGIKA PENENTUAN CUSTOMER ===
+                $customerId = null;
 
-            // 4. Fake GPS (placeholder logic)
-            $fakeScore = 0;
-            $isFake    = false;
+                if ($request->customer_mode === 'manual') {
+                    $newCustomer = Customer::create([
+                        'name'    => $request->customer_name,
+                        'address' => $address,
+                        'lat'     => $lat,
+                        'lng'     => $lng,
+                        'notes'   => $request->customer_note ?? 'Dibuat saat kunjungan sales (Manual)',
+                        'phone'   => $request->customer_phone ?? null,
+                        'email'   => $request->customer_email ?? null,
+                    ]);
 
-            // 5. Simpan visit
-            $visit = SalesVisit::create([
-                'user_id'             => $user->id,
-                'sales_attendance_id' => $attendance->id,
-                'activity_type'       => $validated['activity_type'],
-                'description'         => $validated['description'] ?? null,
-                'visited_at'          => now(),
-                'lat'                 => $lat,
-                'lng'                 => $lng,
-                'address'             => $address,
-                'is_fake_gps'         => $isFake,
-                'fake_gps_score'      => $fakeScore,
-            ]);
+                    $customerId = $newCustomer->id;
+                } else {
+                    $customerId = $request->customer_id;
+                }
 
-            // 6. Simpan foto
-            $file = request()->file('photo');
-            $path = $file->store('visit-photos', 'public');
+                // === B. SIMPAN VISIT ===
+                $visit = SalesVisit::create([
+                    'user_id'             => $user->id,
+                    'sales_attendance_id' => $attendance->id,
+                    'customer_id'         => $customerId, // Gunakan ID dari logika di atas
+                    'activity_type'       => $validated['activity_type'],
+                    'description'         => $validated['description'] ?? null,
+                    'visited_at'          => now(),
+                    'lat'                 => $lat,
+                    'lng'                 => $lng,
+                    'address'             => $address,
+                    'is_fake_gps'         => false,
+                    'fake_gps_score'      => 0,
+                ]);
 
-            SalesVisitPhoto::create([
-                'sales_visit_id' => $visit->id,
-                'file_path'      => $path,
-                'taken_at'       => now(),
-                'lat'            => $lat,
-                'lng'            => $lng,
-                'exif_checked'   => true,
-                'is_fake_gps'    => $isFake,
-            ]);
-        });
+                // === C. SIMPAN FOTO ===
+                if ($request->hasFile('photo')) {
+                    $file = $request->file('photo');
+                    $path = $file->store('visit-photos', 'public');
 
-        return back()->with('success', 'Visit sales berhasil disimpan.');
+                    SalesVisitPhoto::create([
+                        'sales_visit_id' => $visit->id,
+                        'file_path'      => $path,
+                        'taken_at'       => now(),
+                        'lat'            => $lat,
+                        'lng'            => $lng,
+                        'exif_checked'   => true,
+                        'is_fake_gps'    => false,
+                    ]);
+                }
+
+                // === D. SIMPAN PRODUK ===
+                if (!empty($validated['products'])) {
+                    foreach ($validated['products'] as $item) {
+                        $visit->products()->attach($item['product_id'], [
+                            'quantity'    => $item['quantity'],
+                            'action_type' => $item['action_type'],
+                            'note'        => $item['note'] ?? null,
+                            'created_at'  => now(),
+                            'updated_at'  => now(),
+                        ]);
+                    }
+                }
+            });
+
+            return redirect()->back()->with('success', 'Laporan kunjungan & data pelanggan berhasil disimpan.');
+        } catch (\Exception $e) {
+            return back()->withErrors(['message' => 'Gagal menyimpan laporan: ' . $e->getMessage()]);
+        }
+    }
+
+    public function updateContact(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'phone' => 'nullable|string|max:20',
+            'email' => 'nullable|email|max:100',
+        ]);
+
+        $customer = Customer::findOrFail($id);
+        $customer->update($validated);
+
+        return redirect()->back()->with('success', 'Kontak pelanggan berhasil diperbarui.');
     }
 }

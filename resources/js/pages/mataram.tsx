@@ -20,6 +20,7 @@ import {
     PenLine,
     FileText,
 } from 'lucide-react';
+import { useRef } from 'react';
 import { useState, useEffect } from 'react';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
@@ -286,6 +287,23 @@ export default function Dashboard({ attendanceToday, recentVisits, user, serverT
         return `${hours.toString().padStart(2, '0')}:${minutes
             .toString()
             .padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    };
+
+    // 1. Buat referensi untuk 2 input berbeda
+    const cameraInputRef = useRef<HTMLInputElement>(null);
+    const galleryInputRef = useRef<HTMLInputElement>(null);
+
+    // 2. Fungsi trigger klik
+    const onCameraClick = () => cameraInputRef.current?.click();
+    const onGalleryClick = () => galleryInputRef.current?.click();
+
+    // 3. Handler Hapus Foto (Opsional, untuk UX yang lebih baik)
+    const handleRemovePhoto = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setPhoto(null);
+        // Reset value input agar bisa pilih file yang sama jika perlu
+        if (cameraInputRef.current) cameraInputRef.current.value = '';
+        if (galleryInputRef.current) galleryInputRef.current.value = '';
     };
 
     return (
@@ -694,6 +712,9 @@ export default function Dashboard({ attendanceToday, recentVisits, user, serverT
                                 <div className="space-y-2">
                                     <label className="text-sm font-bold text-zinc-700 dark:text-zinc-300 flex justify-between">
                                         <span>Catatan Kegiatan</span>
+                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${description.trim().split(/\s+/).length < 10 ? 'bg-orange-100 text-orange-600 border border-orange-200 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800' : 'bg-emerald-100 text-emerald-600 border border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800'}`}>
+                                            {description.trim().split(/\s+/).length} / 10 kata
+                                        </span>
                                     </label>
                                     <div className="relative group">
                                         <div className="absolute top-3.5 left-3.5 text-zinc-400 group-focus-within:text-blue-500 transition-colors pointer-events-none">
@@ -718,51 +739,94 @@ export default function Dashboard({ attendanceToday, recentVisits, user, serverT
                                             <PenLine size={14} className="text-zinc-300 dark:text-zinc-600" />
                                         </div>
                                     </div>
+                                    {description.trim().split(/\s+/).length < 10 && (
+                                        <p className="text-xs text-orange-600 mt-1">Minimal 10 kata diperlukan.</p>
+                                    )}
                                 </div>
 
                                 {/* Input Foto Bukti */}
-                                <div className="space-y-2">
-                                    <label className="text-sm font-bold text-zinc-700 dark:text-zinc-300 flex justify-between items-center">
-                                        <span>Foto Bukti</span>
-                                        <span className="text-orange-600 dark:text-orange-400 text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800">*Wajib</span>
-                                    </label>
-                                    <div className="relative">
+                                {description.trim().split(/\s+/).length >= 10 && (
+                                    <div className="space-y-2">
                                         <input
+                                            ref={cameraInputRef}
                                             type="file"
                                             accept="image/*"
                                             capture="environment"
+                                            className="hidden"
                                             onChange={handlePhotoChange}
-                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                                         />
-                                        <div className={`border-2 border-dashed rounded-2xl h-60 flex flex-col items-center justify-center transition-all overflow-hidden ${photo
+
+                                        <input
+                                            ref={galleryInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={handlePhotoChange}
+                                        />
+
+                                        <label className="text-sm font-bold text-zinc-700 dark:text-zinc-300 flex justify-between items-center">
+                                            <span>Foto Bukti</span>
+                                            <span className="text-orange-600 dark:text-orange-400 text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800">*Wajib</span>
+                                        </label>
+
+                                        <div className={`border-2 border-dashed rounded-2xl h-60 flex flex-col items-center justify-center transition-all overflow-hidden relative ${photo
                                             ? 'border-orange-400 bg-orange-50/30 dark:bg-orange-900/10'
-                                            : 'border-zinc-200 dark:border-zinc-700 hover:border-blue-400 hover:bg-blue-50/10'
+                                            : 'border-zinc-200 dark:border-zinc-700'
                                             }`}>
+
                                             {isCompressing ? (
                                                 <div className="flex flex-col items-center text-blue-500">
                                                     <Loader2 className="animate-spin mb-2" size={24} />
                                                     <span className="text-[10px] font-bold uppercase tracking-widest">Memproses...</span>
                                                 </div>
                                             ) : photo ? (
-                                                <div className="relative w-full h-full">
+                                                <div className="relative w-full h-full group">
                                                     <img src={URL.createObjectURL(photo)} className="w-full h-full object-cover" alt="Preview" />
-                                                    <div className="absolute inset-0 bg-blue-900/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                                                        <span className="text-white text-xs font-bold flex items-center gap-2 bg-black/20 backdrop-blur-md px-3 py-1.5 rounded-full">
-                                                            <Camera size={14} /> Ganti Foto
-                                                        </span>
+
+                                                    <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity gap-3">
+                                                        <button
+                                                            onClick={handleRemovePhoto}
+                                                            className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-full transition-colors"
+                                                            title="Hapus Foto"
+                                                        >
+                                                            <X size={20} />
+                                                        </button>
+                                                        <span className="text-white text-xs font-medium">Hapus untuk mengganti</span>
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <div className="text-center p-4">
-                                                    <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/20 text-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                                                        <Camera size={24} />
+                                                <div className="w-full px-8 flex flex-col items-center gap-4">
+                                                    <p className="text-sm font-bold text-zinc-500 dark:text-zinc-400 mb-2">
+                                                        Pilih metode upload:
+                                                    </p>
+
+                                                    <div className="flex w-full gap-4">
+                                                        {/* TOMBOL 1: KAMERA */}
+                                                        <button
+                                                            type="button"
+                                                            onClick={onCameraClick}
+                                                            className="flex-1 flex flex-col items-center justify-center gap-2 py-6 px-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 border-2 border-transparent hover:border-blue-300 transition-all active:scale-95"
+                                                        >
+                                                            <Camera size={28} />
+                                                            <span className="text-xs font-bold">Kamera</span>
+                                                        </button>
+
+                                                        {/* TOMBOL 2: GALERI */}
+                                                        <button
+                                                            type="button"
+                                                            onClick={onGalleryClick}
+                                                            className="flex-1 flex flex-col items-center justify-center gap-2 py-6 px-4 rounded-xl bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/40 border-2 border-transparent hover:border-purple-300 transition-all active:scale-95"
+                                                        >
+                                                            <ImageIcon size={28} />
+                                                            <span className="text-xs font-bold">Galeri</span>
+                                                        </button>
                                                     </div>
-                                                    <p className="text-sm font-bold text-zinc-500 dark:text-zinc-400">Ketuk untuk ambil foto</p>
                                                 </div>
                                             )}
                                         </div>
                                     </div>
-                                </div>
+                                )}
+
                             </div>
 
                             {/* Footer Actions */}

@@ -23,6 +23,6 @@ class SalesVisitPhotoController extends Controller
             'exif_checked' => false,
         ]);
 
-        return back()->with('success', 'Foto berhasil diupload');
+        return redirect()->back()->with('success_visit_id', $visit->id);
     }
 }

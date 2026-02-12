@@ -72,4 +72,9 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(SalesArea::class, 'sales_area_user');
     }
+
+    public function productHistories()
+    {
+        return $this->hasMany(SalesProductHistory::class);
+    }
 }

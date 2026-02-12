@@ -6,9 +6,12 @@ use Illuminate\Database\Eloquent\Model;
 
 class SalesVisit extends Model
 {
+    protected $guarded = ['id'];
+    
     protected $fillable = [
         'user_id',
         'sales_attendance_id',
+        'customer_id',
         'activity_type',
         'description',
         'visited_at',
@@ -37,5 +40,22 @@ class SalesVisit extends Model
     public function photos()
     {
         return $this->hasMany(SalesVisitPhoto::class);
+    }
+    public function customer()
+    {
+        return $this->belongsTo(Customer::class);
+    }
+
+    public function products()
+    {
+        // return $this->hasMany(SalesVisitProduct::class);
+        return $this->belongsToMany(Product::class, 'sales_visit_products')
+            ->withPivot('quantity', 'action_type', 'note')
+            ->withTimestamps();
+    }
+
+    public function productHistories()
+    {
+        return $this->hasMany(SalesProductHistory::class);
     }
 }
