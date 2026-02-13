@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Bagus Dinamika Nusantara</string>
+    <string name="title_activity_main">Bagus Dinamika Nusantara</string>
+    <string name="package_name">com.example.appbagusdinamikanusantara</string>
+    <string name="custom_url_scheme">com.example.appbagusdinamikanusantara</string>
+</resources>
