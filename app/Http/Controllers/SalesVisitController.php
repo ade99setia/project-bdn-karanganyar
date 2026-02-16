@@ -97,7 +97,7 @@ class SalesVisitController extends Controller
                 // === C. SIMPAN FOTO ===
                 if ($request->hasFile('photo')) {
                     $file = $request->file('photo');
-                    $path = $file->store('visit-photos', 'public');
+                    $path = $file->store('visit-photos/' . $user->id, 'public');
 
                     SalesVisitPhoto::create([
                         'sales_visit_id' => $visit->id,
