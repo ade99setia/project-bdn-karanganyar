@@ -29,7 +29,8 @@ import {
     CalendarDays,
     Phone,
     Mail,
-    StickyNote
+    StickyNote,
+    RefreshCw
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import AlertModal from '@/components/modal/alert-modal';
@@ -37,7 +38,6 @@ import FaceVerificationModal from '@/components/modal/face-verification-modal';
 import ImagePreviewModal from '@/components/modal/image-preview-modal';
 import VisitDetailModal from '@/components/modal/visit-detail-modal';
 import AppLayoutMobile from '@/layouts/app-layout-mobile';
-import { dashboard } from '@/routes';
 import type { BreadcrumbItem } from '@/types';
 
 // --- INTERFACES ---
@@ -122,9 +122,7 @@ interface Props {
     } | null;
 }
 
-const breadcrumbs: BreadcrumbItem[] = [{ title: 'Dashboard', href: dashboard().url }];
-
-export default function Dashboard({ attendanceToday, recentVisits, user, serverTime, products, userFaceDescriptor = null }: Props) {
+export default function SalesRecord({ attendanceToday, recentVisits, user, serverTime, products, userFaceDescriptor = null }: Props) {
     const [processing, setProcessing] = useState(false);
     const [currentTime, setCurrentTime] = useState(new Date(serverTime));
     const [openVisit, setOpenVisit] = useState(false);
@@ -647,6 +645,10 @@ export default function Dashboard({ attendanceToday, recentVisits, user, serverT
         manualCustomerName.trim() &&
         manualCustomerNote.trim();
 
+    const breadcrumbs: BreadcrumbItem[] = [
+        { title: 'Home', href: `/${user.name.toLowerCase()}/dashboard` },
+        { title: 'Visit Record', href: `/${user.name.toLowerCase()}/visit-record` }
+    ];
 
     return (
         <AppLayoutMobile breadcrumbs={breadcrumbs}>
@@ -713,13 +715,37 @@ export default function Dashboard({ attendanceToday, recentVisits, user, serverT
 
                         {/* BUTTONS */}
                         <div className="mt-6 grid grid-cols-1 gap-4">
-                            <button
+                            <motion.button
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
                                 onClick={() => window.location.reload()}
-                                className="flex w-full items-center justify-center gap-3 mt-6 rounded-2xl bg-slate-100 dark:bg-slate-800 py-4.5 text-base font-black text-slate-600 dark:text-slate-400 transition-all active:scale-[0.97] h-16 hover:bg-slate-200 dark:hover:bg-slate-700"
+                                className={`
+                                    w-full flex items-center justify-center gap-3 
+                                    rounded-2xl bg-linear-to-r from-blue-50 via-blue-100 to-blue-200 
+                                    dark:from-slate-800 dark:via-blue-950 dark:to-blue-900 
+                                    py-4.5 text-base font-bold tracking-wide 
+                                    text-blue-800 dark:text-blue-200 
+                                    transition-all duration-300 h-16
+                                    border border-blue-200/70 dark:border-blue-800/50
+                                    hover:shadow-xl hover:shadow-blue-200/40 dark:hover:shadow-blue-950/30
+                                    hover:border-blue-300 dark:hover:border-blue-700
+                                    group overflow-hidden
+                                `}
                             >
-                                <ArrowRight size={22} strokeWidth={2} className="-rotate-90" />
+                                <div className="relative">
+                                    <RefreshCw
+                                        size={22}
+                                        strokeWidth={2.5}
+                                        className={`
+                                            text-blue-600 dark:text-blue-400
+                                            transition-transform duration-500 
+                                            group-hover:rotate-180 
+                                            group-hover:scale-110
+                                        `}
+                                    />
+                                </div>
                                 <span>MUAT ULANG</span>
-                            </button>
+                            </motion.button>
 
                             <div className="grid gap-4">
                                 {!isCheckedIn ? (
@@ -748,8 +774,16 @@ export default function Dashboard({ attendanceToday, recentVisits, user, serverT
                                 )}
                             </div>
 
-                            <button onClick={handleOpenVisitModal} disabled={!isCheckedIn || processing || isCheckedOut} className={`flex w-full items-center justify-center gap-3 rounded-2xl py-4.5 text-base font-black transition-all active:scale-[0.97] h-16 ${(!isCheckedIn || isCheckedOut) ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed' : 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 border-2 border-blue-600 dark:border-blue-500 shadow-xl'}`}>
-                                <Plus size={22} strokeWidth={3} /><span>TAMBAH LAPORAN KUNJUNGAN</span>
+                            <button
+                                onClick={handleOpenVisitModal}
+                                disabled={!isCheckedIn || processing || isCheckedOut}
+                                className={`flex w-full items-center justify-center gap-3 rounded-2xl py-4.5 text-base font-black transition-all active:scale-[0.97] h-16 ${(!isCheckedIn || isCheckedOut)
+                                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                                    : 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 border-2 border-blue-600 dark:border-blue-500 shadow-xl hover:shadow-2xl hover:border-blue-500/80 dark:hover:border-blue-400/80'
+                                    }`}
+                            >
+                                <Plus size={22} strokeWidth={3} />
+                                <span>TAMBAH LAPORAN KUNJUNGAN</span>
                             </button>
                         </div>
                     </motion.div>

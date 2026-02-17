@@ -21,7 +21,7 @@ Route::get('dashboard', function () {
     return Inertia::render('dashboard');
 })->middleware(['auth', 'verified'])->name('dashboard');
 
-// Sales Routes
+// Sales Routes Capacitor JS
 Route::middleware(['auth'])->prefix('sales')->group(function () {
     Route::get('dashboard', [DashboardController::class, 'sales'])->name('sales.dashboard');
 
