@@ -26,6 +26,7 @@ class User extends Authenticatable
         'password',
         'avatar',
         'role',
+        'supervisor_id',
     ];
 
     /**
@@ -78,5 +79,16 @@ class User extends Authenticatable
     public function productHistories()
     {
         return $this->hasMany(SalesProductHistory::class);
+    }
+
+    // Supervisor-Sales Relationship
+    public function supervisor()
+    {
+        return $this->belongsTo(User::class, 'supervisor_id');
+    }
+
+    public function salesTeam()
+    {
+        return $this->hasMany(User::class, 'supervisor_id');
     }
 }

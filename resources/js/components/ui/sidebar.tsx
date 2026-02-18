@@ -262,14 +262,14 @@ function SidebarTrigger({
       data-slot="sidebar-trigger"
       variant="ghost"
       size="icon"
-      className={cn("h-15 w-15", className)}
+      className={cn("h-12 w-12", className)}
       onClick={(event) => {
         onClick?.(event)
         toggleSidebar()
       }}
       {...props}
     >
-      {isMobile || state === "collapsed" ? <PanelLeftOpenIcon className="size-8" /> : <PanelLeftCloseIcon className="size-8" />}
+      {isMobile || state === "collapsed" ? <PanelLeftOpenIcon className="size-7" /> : <PanelLeftCloseIcon className="size-7" />}
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   )

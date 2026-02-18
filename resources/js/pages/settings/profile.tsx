@@ -50,7 +50,7 @@ export default function Profile({
                     <Heading
                         variant="small"
                         title="Profile information"
-                        description="Update your name and email address"
+                        description="Update your name, email address and profile picture."
                     />
 
                     {/* Avatar Section */}
@@ -72,7 +72,7 @@ export default function Profile({
                                     </div>
                                 )}
                                 <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all flex items-center justify-center">
-                                    <Camera className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-all" />
+                                    <Camera className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-all z-10" />
                                 </div>
                             </button>
                         </div>

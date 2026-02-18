@@ -111,27 +111,28 @@ class DashboardController extends Controller
     //     ]);
     // }
 
-    public function monitoring($user_id)
-    {
-        $user = User::findOrFail($user_id);
-        $date = request()->query('date', now()->toDateString());
+    // public function monitoring($user_id)
+    // {
+    //     $user = User::findOrFail($user_id);
+    //     $date = request()->query('date', now()->toDateString());
 
-        $attendanceToday = SalesAttendance::where('user_id', $user_id)
-            ->whereDate('work_date', $date)
-            ->first();
+    //     $attendanceToday = SalesAttendance::where('user_id', $user_id)
+    //         ->whereDate('work_date', $date)
+    //         ->first();
 
-        $recentVisits = SalesVisit::with('photos', 'user')
-            ->where('user_id', $user_id)
-            ->whereDate('visited_at', $date)
-            ->latest('visited_at')
-            ->get();
+    //     $recentVisits = SalesVisit::with('photos', 'user')
+    //         ->where('user_id', $user_id)
+    //         ->whereDate('visited_at', $date)
+    //         ->latest('visited_at')
+    //         ->get();
 
-        return Inertia::render('monitoring', [
-            'user' => $user,
-            'attendanceToday' => $attendanceToday,
-            'recentVisits' => $recentVisits,
-            'selectedDate' => $date,
-            'serverTime' => now()->toISOString(),
-        ]);
-    }
+    //     return Inertia::render('monitoring', [
+    //         'user' => $user,
+    //         'attendanceToday' => $attendanceToday,
+    //         'recentVisits' => $recentVisits,
+    //         'selectedDate' => $date,
+    //         'serverTime' => now()->toISOString(),
+    //     ]);
+    // }
+
 }

@@ -1,11 +1,77 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Loading App...</title>
-</head>
-<body>
-    <h1>Memuat Aplikasi...</h1>
-</body>
+<!doctype html>
+<html lang="en" class="">
+    <head>
+        <meta charset="utf-8" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+        />
+        <meta-data android:name="android.max_aspect" android:value="2.1" />
+
+        <script>
+            (function () {
+                const appearance = 'system';
+
+                if (appearance === 'system') {
+                    const prefersDark = window.matchMedia(
+                        '(prefers-color-scheme: dark)',
+                    ).matches;
+
+                    if (prefersDark) {
+                        document.documentElement.classList.add('dark');
+                    }
+                }
+            })();
+        </script>
+
+        <style>
+            html {
+                background-color: oklch(1 0 0);
+            }
+
+            html.dark {
+                background-color: oklch(0.145 0 0);
+            }
+        </style>
+
+        <title inertia>Bagus Dinamika Nusantara</title>
+
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+        <link rel="preconnect" href="https://fonts.bunny.net" />
+        <link
+            href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600"
+            rel="stylesheet"
+        />
+
+        <script type="module">
+            import RefreshRuntime from 'http://[::1]:5173/@react-refresh';
+            RefreshRuntime.injectIntoGlobalHook(window);
+            window.$RefreshReg$ = () => {};
+            window.$RefreshSig$ = () => (type) => type;
+            window.__vite_plugin_react_preamble_installed__ = true;
+        </script>
+        <script type="module" src="http://[::1]:5173/@vite/client"></script>
+        <script
+            type="module"
+            src="http://[::1]:5173/resources/js/app.tsx"
+        ></script>
+        <script
+            type="module"
+            src="http://[::1]:5173/resources/js/pages/welcome.tsx"
+        ></script>
+        <script type="module" src="http://[::1]:5173/@vite/client"></script>
+        <script
+            type="module"
+            src="http://[::1]:5173/resources/js/app.tsx"
+        ></script>
+    </head>
+    <body class="font-sans antialiased">
+        <div
+            id="app"
+            data-page='{"component":"welcome","props":{"errors":{},"name":"Bagus Dinamika Nusantara","auth":{"user":{"id":2,"name":"Adzkiya Nadhira Setiawan","email":"ade99setia@gmail.com","email_verified_at":null,"created_at":"2026-01-30T01:41:17.000000Z","updated_at":"2026-02-17T01:56:43.000000Z","two_factor_confirmed_at":null,"nip":null,"phone":null,"avatar":"\/storage\/profiles\/profile_2_YR4zvrIgbw.webp","role":"supervisor"}},"sidebarOpen":true,"flash":{"success":null,"error":null,"warning":null,"info":null},"canRegister":true},"url":"\/","version":"623192636d979ce4c3729e433f7d35db","clearHistory":false,"encryptHistory":false}'
+        ></div>
+    </body>
 </html>

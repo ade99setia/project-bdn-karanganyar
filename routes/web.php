@@ -10,6 +10,7 @@ use App\Http\Controllers\SalesVisitPhotoController;
 use App\Http\Controllers\SalesVisitMataramController;
 use App\Http\Controllers\SalesUtilsController;
 use App\Http\Controllers\Utils\NearbyCustomerController;
+use App\Http\Controllers\SupervisorController;
 
 Route::get('/', function () {
     return Inertia::render('welcome', [
@@ -17,13 +18,21 @@ Route::get('/', function () {
     ]);
 })->name('home');
 
-Route::get('dashboard', function () {
-    return Inertia::render('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+
+// Supervisor Routes with Inertia JS
+Route::middleware(['auth', 'verified'])->prefix('supervisor')->group(function () {
+    Route::get('dashboard', function () {
+        return Inertia::render('supervisor/dashboard');
+    });
+
+    Route::get('monitoring-team', [SupervisorController::class, 'monitoringTeam']);
+    Route::get('monitoring-record/{user_id}', [SupervisorController::class, 'monitoringRecord'])
+        ->where('user_id', '[0-9]+');
+});
 
 // Sales Routes Capacitor JS
-Route::middleware(['auth'])->prefix('sales')->group(function () {
-    Route::get('dashboard', [DashboardController::class, 'sales'])->name('sales.dashboard');
+Route::middleware(['auth', 'verified'])->prefix('sales')->group(function () {
+    Route::get('dashboard', [DashboardController::class, 'sales']);
 
     Route::post('attendance/check-in', [SalesAttendanceController::class, 'checkIn']);
     Route::post('attendance/check-out', [SalesAttendanceController::class, 'checkOut']);
@@ -56,10 +65,9 @@ Route::middleware(['auth'])->prefix('sales')->group(function () {
 //     }
 // });
 
-Route::get('monitoring/{user_id}', [DashboardController::class, 'monitoring']);
-Route::get('htx20sht7bwy9pgYP4VP7AFhYi6GL5ryffX1LAYMwBbKoo8jA7uBqVbQcmPT1RGkVAtFuh7v4k9xicGxGQMTXZxba3CWFOIoxgw', function () {
-    return Inertia::render('select-monitoring');
-});
-
+// Route::get('monitoring/{user_id}', [DashboardController::class, 'monitoring']);
+// Route::get('htx20sht7bwy9pgYP4VP7AFhYi6GL5ryffX1LAYMwBbKoo8jA7uBqVbQcmPT1RGkVAtFuh7v4k9xicGxGQMTXZxba3CWFOIoxgw', function () {
+//     return Inertia::render('select-monitoring');
+// });
 
 require __DIR__ . '/settings.php';
