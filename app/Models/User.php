@@ -20,13 +20,11 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'name',
-        'nip',
         'phone',
         'email',
         'password',
         'avatar',
-        'role',
-        'supervisor_id',
+        'role_id',
     ];
 
     /**
@@ -55,6 +53,19 @@ class User extends Authenticatable
         ];
     }
 
+    public function getRoleNameAttribute(): ?string
+    {
+        if ($this->relationLoaded('role')) {
+            return $this->getRelation('role')?->name;
+        }
+
+        if (array_key_exists('role', $this->attributes) && $this->attributes['role']) {
+            return $this->attributes['role'];
+        }
+
+        return $this->role()?->value('name');
+    }
+
     // Eloquent Relationships to Sales Models
     public function salesAttendances()
     {
@@ -81,14 +92,14 @@ class User extends Authenticatable
         return $this->hasMany(SalesProductHistory::class);
     }
 
-    // Supervisor-Sales Relationship
-    public function supervisor()
+    public function role()
     {
-        return $this->belongsTo(User::class, 'supervisor_id');
+        return $this->belongsTo(Role::class);
     }
 
-    public function salesTeam()
+    public function employee()
     {
-        return $this->hasMany(User::class, 'supervisor_id');
+        return $this->hasOne(Employee::class);
     }
+
 }

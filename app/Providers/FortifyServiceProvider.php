@@ -13,6 +13,7 @@ use Inertia\Inertia;
 use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
 use Laravel\Fortify\Contracts\LoginResponse;
+use Laravel\Fortify\Contracts\LogoutResponse;
 
 class FortifyServiceProvider extends ServiceProvider
 {
@@ -39,11 +40,20 @@ class FortifyServiceProvider extends ServiceProvider
                 {
                     $user = $request->user();
 
-                    if ($user->role === 'sales') {
-                        return redirect()->route('sales.dashboard');
+                    if ($user->role_name) {
+                        return redirect('/' . $user->role_name . '/dashboard');
                     }
 
-                    return redirect()->route('dashboard');
+                    return redirect()->route('profile.edit');
+                }
+            };
+        });
+
+        $this->app->singleton(LogoutResponse::class, function () {
+            return new class implements LogoutResponse {
+                public function toResponse($request)
+                {
+                    return redirect()->route('login');
                 }
             };
         });

@@ -23,7 +23,7 @@ import {
 import { useRef } from 'react';
 import { useState, useEffect } from 'react';
 import AppLayout from '@/layouts/app-layout';
-import { dashboard } from '@/routes';
+// import { dashboard } from '@/routes';
 import type { BreadcrumbItem } from '@/types';
 
 interface AttendanceToday {
@@ -61,7 +61,7 @@ interface Props {
     serverTime: string;
 }
 
-const breadcrumbs: BreadcrumbItem[] = [{ title: 'Dashboard', href: dashboard().url }];
+const breadcrumbs: BreadcrumbItem[] = [{ title: 'Dashboard', href: '/dashboard' }];
 
 export default function Dashboard({ attendanceToday, recentVisits, user, serverTime }: Props & { serverTime: string }) {
     const [processing, setProcessing] = useState(false);

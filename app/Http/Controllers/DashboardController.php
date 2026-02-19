@@ -21,6 +21,10 @@ class DashboardController extends Controller
             ->select('descriptor', 'photo_path')
             ->first();
 
+        if (!$user->avatar) {
+            return redirect()->route('profile.edit')->with('warning', 'Silakan unggah foto profil Anda terlebih dahulu di halaman profil sebelum mengakses dashboard.');
+        }
+            
         if (!$userFaceDescriptor) {
             return redirect()->route('profile.edit')->with('warning', 'Silakan unggah data wajah Anda terlebih dahulu di halaman profil sebelum mengakses dashboard.');
         }

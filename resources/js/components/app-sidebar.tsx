@@ -38,11 +38,19 @@ export function AppSidebar() {
             href: `/${auth.user.role}/dashboard`,
             icon: LayoutGrid,
         },
-        {
-            title: 'Monitoring Teams',
-            href: `/${auth.user.role}/monitoring-team`,
-            icon: MonitorCheck,
-        },
+        ...(auth.user.role !== 'sales' ? [
+            {
+                title: 'Monitoring Teams',
+                href: `/${auth.user.role}/monitoring-team`,
+                icon: MonitorCheck,
+            },
+        ] : [
+            {
+                title: 'Monitoring Performa',
+                href: `/${auth.user.role}/monitoring-record/${auth.user.id}`,
+                icon: MonitorCheck,
+            },
+        ]),
     ];
 
     return (

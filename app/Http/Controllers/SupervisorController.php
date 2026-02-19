@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use Inertia\Inertia;
+use App\Models\Employee;
+use App\Models\Product;
 use App\Models\User;
 use App\Models\SalesVisit;
 use Illuminate\Support\Facades\Auth;
@@ -11,49 +13,82 @@ class SupervisorController extends Controller
 {
     public function monitoringTeam()
     {
-        // Get all supervisors with their sales team members
-        $teams = User::where('role', 'supervisor')
-            ->with(['salesTeam' => function ($query) {
-                $query->select('id', 'name', 'role', 'supervisor_id', 'avatar')
-                    ->orderBy('name');
-            }])
-            ->select('id', 'name', 'email', 'role', 'avatar')
+        $supervisors = User::query()
+            ->with([
+                'employee:id,user_id',
+                'role:id,name',
+            ])
+            ->whereHas('role', function ($query) {
+                $query->where('name', 'supervisor');
+            })
+            ->select('id', 'name', 'email', 'avatar', 'role_id')
             ->orderBy('name')
-            ->get()
-            ->map(function ($supervisor, $index) {
-                // Generate colors for each team
-                $colors = [
-                    ['gradient' => 'from-blue-600 via-indigo-600 to-indigo-800', 'shadow' => 'shadow-indigo-500/30'],
-                    ['gradient' => 'from-emerald-600 via-teal-600 to-teal-800', 'shadow' => 'shadow-teal-500/30'],
-                    ['gradient' => 'from-amber-500 via-orange-600 to-orange-800', 'shadow' => 'shadow-orange-500/30'],
-                    ['gradient' => 'from-purple-600 via-fuchsia-600 to-pink-800', 'shadow' => 'shadow-purple-500/30'],
-                    ['gradient' => 'from-cyan-600 via-blue-600 to-blue-800', 'shadow' => 'shadow-blue-500/30'],
-                    ['gradient' => 'from-rose-600 via-pink-600 to-rose-800', 'shadow' => 'shadow-rose-500/30'],
-                    ['gradient' => 'from-lime-600 via-green-600 to-emerald-800', 'shadow' => 'shadow-green-500/30'],
-                    ['gradient' => 'from-sky-600 via-cyan-600 to-blue-800', 'shadow' => 'shadow-cyan-500/30'],
-                    ['gradient' => 'from-neutral-600 via-zinc-700 to-neutral-900', 'shadow' => 'shadow-zinc-500/30'],
-                ];
+            ->get();
 
-                $colorIndex = $index % count($colors);
+        $supervisorEmployeeIds = $supervisors
+            ->pluck('employee.id')
+            ->filter()
+            ->values();
 
-                return [
-                    'id' => $supervisor->id,
-                    'name' => 'Team ' . ($index + 1),
-                    'supervisor' => $supervisor->name,
-                    'supervisorAvatar' => $supervisor->avatar,
-                    'members' => $supervisor->salesTeam->map(function ($member) {
+        $salesBySupervisorEmployeeId = collect();
+
+        if ($supervisorEmployeeIds->isNotEmpty()) {
+            $salesBySupervisorEmployeeId = Employee::query()
+                ->with([
+                    'user' => function ($query) {
+                        $query->select('id', 'name', 'avatar', 'role_id')
+                            ->with('role:id,name');
+                    },
+                ])
+                ->whereIn('supervisor_id', $supervisorEmployeeIds)
+                ->whereHas('user.role', function ($query) {
+                    $query->where('name', 'sales');
+                })
+                ->get()
+                ->groupBy('supervisor_id');
+        }
+
+        $teams = $supervisors->values()->map(function ($supervisor, $index) use ($salesBySupervisorEmployeeId) {
+            $colors = [
+                ['gradient' => 'from-blue-600 via-indigo-600 to-indigo-800', 'shadow' => 'shadow-indigo-500/30'],
+                ['gradient' => 'from-emerald-600 via-teal-600 to-teal-800', 'shadow' => 'shadow-teal-500/30'],
+                ['gradient' => 'from-amber-500 via-orange-600 to-orange-800', 'shadow' => 'shadow-orange-500/30'],
+                ['gradient' => 'from-purple-600 via-fuchsia-600 to-pink-800', 'shadow' => 'shadow-purple-500/30'],
+                ['gradient' => 'from-cyan-600 via-blue-600 to-blue-800', 'shadow' => 'shadow-blue-500/30'],
+                ['gradient' => 'from-rose-600 via-pink-600 to-rose-800', 'shadow' => 'shadow-rose-500/30'],
+                ['gradient' => 'from-lime-600 via-green-600 to-emerald-800', 'shadow' => 'shadow-green-500/30'],
+                ['gradient' => 'from-sky-600 via-cyan-600 to-blue-800', 'shadow' => 'shadow-cyan-500/30'],
+                ['gradient' => 'from-neutral-600 via-zinc-700 to-neutral-900', 'shadow' => 'shadow-zinc-500/30'],
+            ];
+
+            $colorIndex = $index % count($colors);
+            $members = collect();
+
+            if ($supervisor->employee) {
+                $members = $salesBySupervisorEmployeeId
+                    ->get($supervisor->employee->id, collect())
+                    ->map(function ($employee) {
                         return [
-                            'id' => $member->id,
-                            'name' => $member->name,
-                            'role' => $member->role,
-                            'avatar' => $member->avatar,
+                            'id' => $employee->user->id,
+                            'name' => $employee->user->name,
+                            'role' => $employee->user->role?->name ?? 'sales',
+                            'avatar' => $employee->user->avatar,
                         ];
-                    }),
-                    'totalMembers' => $supervisor->salesTeam->count() + 1, // +1 for supervisor
-                    'color' => $colors[$colorIndex]['gradient'],
-                    'shadowColor' => $colors[$colorIndex]['shadow'],
-                ];
-            });
+                    })
+                    ->values();
+            }
+
+            return [
+                'id' => $supervisor->id,
+                'name' => 'Team ' . ($index + 1),
+                'supervisor' => $supervisor->name,
+                'supervisorAvatar' => $supervisor->avatar,
+                'members' => $members,
+                'totalMembers' => $members->count() + 1,
+                'color' => $colors[$colorIndex]['gradient'],
+                'shadowColor' => $colors[$colorIndex]['shadow'],
+            ];
+        });
 
         return Inertia::render('supervisor/monitoring-team', [
             'teams' => $teams,
@@ -62,21 +97,37 @@ class SupervisorController extends Controller
 
     public function monitoringRecord($user_id)
     {
-        $supervisor = User::findOrFail($user_id);
+        $supervisor = User::query()
+            ->with([
+                'employee:id,user_id',
+                'role:id,name',
+            ])
+            ->findOrFail($user_id);
+
         $currentUser = Auth::user();
-        
-        // Authorization: Check if user is allowed to view this team's data
-        // Allow if: user is viewing their own team OR user is an admin
-        if ($currentUser->role === 'supervisor' && $currentUser->id !== $supervisor->id) {
+
+        if ($currentUser instanceof User) {
+            $currentUser->load('role:id,name');
+        }
+
+        if ($currentUser instanceof User && $currentUser->role_name == 'supervisor' && $currentUser->id != $supervisor->id) {
             abort(403, 'Anda hanya bisa melihat data tim Anda sendiri.');
         }
-        
-        // Get all sales users under this supervisor
-        $salesUsers = User::where('supervisor_id', $user_id)
-            ->where('role', 'sales')
-            ->select('id', 'name', 'avatar')
-            ->orderBy('name')
-            ->get();
+
+        $salesUsers = collect();
+
+        if ($supervisor->employee) {
+            $salesUsers = User::query()
+                ->whereHas('role', function ($query) {
+                    $query->where('name', 'sales');
+                })
+                ->whereHas('employee', function ($query) use ($supervisor) {
+                    $query->where('supervisor_id', $supervisor->employee->id);
+                })
+                ->select('id', 'name', 'avatar')
+                ->orderBy('name')
+                ->get();
+        }
 
         // Determine filter type and dates
         $filterType = request()->query('filterType', 'single');
@@ -86,11 +137,21 @@ class SupervisorController extends Controller
 
         // Build query for visits
         $recentVisits = [];
-        
+        $products = Product::query()
+            ->where('is_active', true)
+            ->select('id', 'name', 'file_path', 'sku', 'category')
+            ->orderBy('name')
+            ->get();
+
         if ($salesUsers->count() > 0) {
-            $query = SalesVisit::with(['photos', 'user' => function ($query) {
-                $query->select('id', 'name', 'avatar');
-            }])
+            $query = SalesVisit::with([
+                'photos',
+                'customer',
+                'products',
+                'user' => function ($query) {
+                    $query->select('id', 'name', 'avatar');
+                },
+            ])
                 ->whereIn('user_id', $salesUsers->pluck('id'));
 
             if ($filterType === 'range') {
@@ -102,9 +163,16 @@ class SupervisorController extends Controller
             $recentVisits = $query->latest('visited_at')->get();
         }
 
+        if ($supervisor->avatar) {
+            $supervisorAvatar = '/storage/profiles/' . $supervisor->avatar;
+        } else {
+            $supervisorAvatar = null;
+        }
+
         return Inertia::render('supervisor/monitoring-record', [
             'recentVisits' => $recentVisits,
             'attendances' => [],
+            'products' => $products,
             'salesUsers' => $salesUsers,
             'selectedDate' => $selectedDate,
             'startDate' => $startDate,
@@ -112,7 +180,7 @@ class SupervisorController extends Controller
             'filterType' => $filterType,
             'serverTime' => now()->toISOString(),
             'supervisorName' => $supervisor->name,
-            'supervisorAvatar' => $supervisor->avatar,
+            'supervisorAvatar' => $supervisorAvatar,
         ]);
     }
 }

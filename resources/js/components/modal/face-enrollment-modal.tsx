@@ -296,7 +296,7 @@ export default function FaceEnrollmentModal({ isOpen, onClose, user }: FaceEnrol
                                     <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-indigo-500 rounded-bl-2xl -mb-0.5 -ml-0.5"></div>
                                     <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-indigo-500 rounded-br-2xl -mb-0.5 -mr-0.5"></div>
                                 </div>
-                                <p className="absolute bottom-24 bg-black/50 px-4 py-2 rounded-full text-white text-sm backdrop-blur-sm">
+                                <p className="absolute bottom-32 bg-black/50 px-4 py-2 rounded-full text-white text-sm backdrop-blur-sm">
                                     Posisikan wajah di tengah
                                 </p>
                             </div>

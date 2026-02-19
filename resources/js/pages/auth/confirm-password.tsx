@@ -1,4 +1,4 @@
-import { Form, Head } from '@inertiajs/react';
+import { Form, Head, router } from '@inertiajs/react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,6 +45,17 @@ export default function ConfirmPassword() {
                     </div>
                 )}
             </Form>
+
+            <div className="flex items-center">
+                <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => router.get('/settings/profile')}
+                >
+                    Kembali
+                </Button>
+            </div>
+            
         </AuthLayout>
     );
 }

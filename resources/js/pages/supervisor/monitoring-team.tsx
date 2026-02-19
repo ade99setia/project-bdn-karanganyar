@@ -250,7 +250,7 @@ export default function SelectMonitoring({ teams }: SelectMonitoringProps) {
                                                             </div>
                                                         )}
                                                         <div className="text-xs text-slate-500 font-medium ml-auto">
-                                                            Total <span className="text-slate-900 dark:text-white font-bold text-sm">{team.totalMembers}</span> Personil
+                                                            Total <span className="text-slate-900 dark:text-white font-bold text-sm">{team.totalMembers - 1}</span> Personil
                                                         </div>
                                                     </div>
 

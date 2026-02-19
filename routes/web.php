@@ -11,12 +11,19 @@ use App\Http\Controllers\SalesVisitMataramController;
 use App\Http\Controllers\SalesUtilsController;
 use App\Http\Controllers\Utils\NearbyCustomerController;
 use App\Http\Controllers\SupervisorController;
+use App\Http\Controllers\SalesController;
 
 Route::get('/', function () {
     return Inertia::render('welcome', [
         'canRegister' => Features::enabled(Features::registration()),
     ]);
 })->name('home');
+
+// Default route after login, will redirect to role-based dashboard
+Route::get('dashboard', function () {
+    // return Inertia::render('dashboard');
+    return redirect()->route('profile.edit');
+})->middleware(['auth', 'verified'])->name('dashboard');
 
 
 // Supervisor Routes with Inertia JS
@@ -32,7 +39,12 @@ Route::middleware(['auth', 'verified'])->prefix('supervisor')->group(function ()
 
 // Sales Routes Capacitor JS
 Route::middleware(['auth', 'verified'])->prefix('sales')->group(function () {
-    Route::get('dashboard', [DashboardController::class, 'sales']);
+    Route::middleware(['roleUser:1,active'])->group(function () {
+        Route::get('dashboard', [DashboardController::class, 'sales']);
+
+        Route::get('monitoring-record/{user_id}', [SalesController::class, 'monitoringRecord'])
+            ->where('user_id', '[0-9]+');
+    });
 
     Route::post('attendance/check-in', [SalesAttendanceController::class, 'checkIn']);
     Route::post('attendance/check-out', [SalesAttendanceController::class, 'checkOut']);

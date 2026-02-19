@@ -6,24 +6,29 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->foreignId('supervisor_id')->nullable()->after('role')->constrained('users')->nullOnDelete();
+
+            // Hapus kolom yang tidak diperlukan lagi
+            if (Schema::hasColumn('users', 'nip')) {
+                $table->dropColumn('nip');
+            }
+
+            if (Schema::hasColumn('users', 'phone')) {
+                $table->dropColumn('phone');
+            }
+
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->dropForeign(['supervisor_id']);
-            $table->dropColumn('supervisor_id');
+
+            $table->string('nip')->nullable();
+            $table->string('phone')->nullable();
+
         });
     }
 };
