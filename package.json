@@ -29,6 +29,7 @@
         "typescript-eslint": "^8.23.0"
     },
     "dependencies": {
+        "@capacitor-community/sqlite": "^8.0.0",
         "@capacitor/android": "^8.1.0",
         "@capacitor/app": "^8.0.1",
         "@capacitor/app-launcher": "^8.0.1",

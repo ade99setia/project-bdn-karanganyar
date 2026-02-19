@@ -24,6 +24,7 @@ class Customer extends Model
 
     public function scopeNearby($query, $lat, $lng, $radius = 2)
     {
+        // Rough bounding box untuk pre-filter (efisiensi)
         $range = ($radius / 111) * 1.2;
 
         $query->whereBetween('lat', [$lat - $range, $lat + $range])
@@ -32,6 +33,7 @@ class Customer extends Model
         $driver = config('database.default');
 
         if ($driver === 'mysql' || $driver === 'pgsql') {
+            // Formula haversine untuk calculate distance akurat
             $haversine = "(6371 * acos(
                         cos(radians(?)) 
                         * cos(radians(lat)) 
@@ -42,8 +44,8 @@ class Customer extends Model
 
             return $query
                 ->select('*')
-                ->selectRaw("{$haversine} + 0 AS distance", [$lat, $lng, $lat])
-                ->havingRaw("distance < ?", [$radius])
+                ->selectRaw("{$haversine} AS distance", [$lat, $lng, $lat])
+                ->havingRaw("distance <= ?", [$radius])
                 ->orderBy('distance');
         }
 

@@ -35,6 +35,12 @@ Route::middleware(['auth', 'verified'])->prefix('supervisor')->group(function ()
     Route::get('monitoring-team', [SupervisorController::class, 'monitoringTeam']);
     Route::get('monitoring-record/{user_id}', [SupervisorController::class, 'monitoringRecord'])
         ->where('user_id', '[0-9]+');
+
+    Route::get('sync-center', function () {
+        return Inertia::render('sync-center', [
+            'role' => 'supervisor',
+        ]);
+    });
 });
 
 // Sales Routes Capacitor JS
@@ -54,6 +60,12 @@ Route::middleware(['auth', 'verified'])->prefix('sales')->group(function () {
     Route::post('visits', [SalesVisitController::class, 'store']);
     Route::patch('customers/{id}/update-contact', [SalesVisitController::class, 'updateContact']);
     Route::post('utils/nearby-customers', NearbyCustomerController::class);
+
+    Route::get('sync-center', function () {
+        return Inertia::render('sync-center', [
+            'role' => 'sales',
+        ]);
+    });
 });
 
 

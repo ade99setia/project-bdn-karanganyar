@@ -5,9 +5,9 @@ const config: CapacitorConfig = {
   appName: 'Bagus Dinamika Nusantara',
   webDir: 'public',
   server: {
-    // url: 'https://talented-prime-foal.ngrok-free.app', 
-    url: 'https://bdn.idnsolo.com', 
-    cleartext: true
+    url: 'https://bdn.idnsolo.com',
+    cleartext: true,
+    allowNavigation: ['bdn.idnsolo.com'],
   }
 };
 

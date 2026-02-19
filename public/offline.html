@@ -3,12 +3,9 @@
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-        <title>Bagus Dinamika Nusantara</title>
-        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <title>Offline - Bagus Dinamika Nusantara</title>
         <style>
             :root {
-                color-scheme: light dark;
-                font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
                 --bg-start: #0b1220;
                 --bg-end: #111b31;
                 --card-bg: rgba(15, 23, 42, 0.72);
@@ -16,9 +13,6 @@
                 --title: #f8fafc;
                 --text: #cbd5e1;
                 --muted: #94a3b8;
-                --accent: #2563eb;
-                --accent-hover: #1d4ed8;
-                --accent-soft: #93c5fd;
             }
 
             *,
@@ -32,23 +26,24 @@
                 min-height: 100vh;
                 display: grid;
                 place-items: center;
-                padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
                 background:
                     radial-gradient(circle at top right, rgba(37, 99, 235, 0.2), transparent 45%),
                     radial-gradient(circle at bottom left, rgba(14, 165, 233, 0.16), transparent 50%),
                     linear-gradient(145deg, var(--bg-start), var(--bg-end));
                 color: var(--title);
+                font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+                padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
             }
 
             .card {
-                width: min(100%, 480px);
+                width: min(100%, 460px);
                 max-width: 100%;
                 border: 1px solid var(--card-border);
                 border-radius: 18px;
-                padding: clamp(18px, 3.5vw, 28px);
                 background: var(--card-bg);
                 backdrop-filter: blur(10px);
                 box-shadow: 0 18px 40px rgba(2, 6, 23, 0.35);
+                padding: clamp(18px, 3.5vw, 28px);
                 overflow-wrap: anywhere;
             }
 
@@ -69,24 +64,22 @@
 
             h1 {
                 margin: 0 0 8px;
-                font-size: clamp(1.08rem, 2.4vw, 1.35rem);
+                font-size: clamp(1.08rem, 2.4vw, 1.3rem);
                 line-height: 1.3;
             }
 
             p {
-                margin: 0 0 16px;
+                margin: 0;
                 line-height: 1.5;
                 color: var(--text);
                 font-size: clamp(0.94rem, 2vw, 1rem);
                 overflow-wrap: anywhere;
             }
 
-            .status {
-                margin-bottom: 16px;
-                font-size: clamp(0.86rem, 1.9vw, 0.92rem);
-                color: var(--accent-soft);
-                font-weight: 600;
-                letter-spacing: 0.01em;
+            .actions {
+                margin-top: 16px;
+                display: grid;
+                gap: 10px;
             }
 
             button {
@@ -94,16 +87,11 @@
                 border: 0;
                 border-radius: 10px;
                 padding: 12px 14px;
-                background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+                background: linear-gradient(135deg, #2563eb, #1d4ed8);
                 color: #fff;
                 font-weight: 600;
                 cursor: pointer;
                 transition: transform 0.18s ease, filter 0.18s ease;
-            }
-
-            .actions {
-                display: grid;
-                gap: 10px;
             }
 
             .button-secondary {
@@ -127,10 +115,9 @@
 
             small {
                 display: block;
-                margin-top: 14px;
+                margin-top: 12px;
                 color: var(--muted);
                 font-size: 0.82rem;
-                line-height: 1.5;
                 overflow-wrap: anywhere;
             }
 
@@ -143,45 +130,31 @@
     </head>
     <body>
         <div class="card">
-            <div class="badge">Semi-Offline Launcher</div>
-            <h1>Bagus Dinamika Nusantara</h1>
-            <div class="status" id="status">Mengecek koneksi...</div>
-            <p id="message">Aplikasi akan otomatis membuka mode online saat internet tersedia.</p>
+            <div class="badge">Mode Offline</div>
+            <h1>Anda sedang offline</h1>
+            <p>Halaman yang sudah pernah dibuka akan tetap tersedia dari cache. Data baru akan otomatis tersinkron saat koneksi kembali.</p>
             <div class="actions">
-                <button id="start-app" type="button">Jalankan Semi-Offline</button>
+                <button id="start-app" type="button">Mulai Aplikasi</button>
+                <button id="go-back" class="button-secondary" type="button">Kembali ke Halaman Sebelumnya</button>
             </div>
-            <small>Mode semi-offline aktif: aplikasi tetap bisa dibuka tanpa internet.</small>
+            <small>Aplikasi akan kembali normal otomatis saat internet tersedia.</small>
         </div>
 
         <script>
-            const statusEl = document.getElementById('status');
-            const messageEl = document.getElementById('message');
-            const launcherPath = window.location.pathname.replace(/\/index\.html?$/i, '/');
-            const ONLINE_URL = `${window.location.origin}${launcherPath}`;
+            const launcherPath = '/index.html';
+            const previousPage = new URLSearchParams(window.location.search).get('from');
 
-            function goOnlineIfPossible() {
-                if (navigator.onLine) {
-                    statusEl.textContent = 'Online: membuka aplikasi...';
-                    window.location.replace(ONLINE_URL);
-                    return;
+            document.getElementById('start-app').addEventListener('click', () => {
+                window.location.assign(`${launcherPath}?ts=${Date.now()}`);
+            });
+
+            document.getElementById('go-back').addEventListener('click', () => {
+                if (previousPage) {
+                    window.location.assign(`/${previousPage.replace(/^\//, '')}`);
+                } else {
+                    window.history.back();
                 }
-
-                statusEl.textContent = 'Offline: launcher tetap aktif';
-                messageEl.textContent = 'Tekan tombol di bawah untuk memulai aplikasi dalam mode semi-offline.';
-            }
-
-            function startSemiOfflineApp() {
-                statusEl.textContent = 'Membuka aplikasi semi-offline...';
-                messageEl.textContent = 'Tunggu sebentar...';
-
-                window.location.replace(ONLINE_URL);
-            }
-
-            document.getElementById('start-app').addEventListener('click', startSemiOfflineApp);
-            window.addEventListener('online', goOnlineIfPossible);
-            window.addEventListener('offline', goOnlineIfPossible);
-
-            goOnlineIfPossible();
+            });
         </script>
     </body>
 </html>

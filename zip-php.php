@@ -27,7 +27,7 @@ foreach ($output as $line) {
     }
 
     $ext = pathinfo($file, PATHINFO_EXTENSION);
-    if (!in_array($ext, ['php', 'json'])) {
+    if (!in_array($ext, ['php', 'json', 'js', 'ts', 'tsx'])) {
         continue;
     }
 

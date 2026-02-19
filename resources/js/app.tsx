@@ -5,10 +5,15 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import '../css/app.css';
 import { initializeTheme } from './hooks/use-appearance';
+import { initializeOfflineHttp } from './lib/offline-http';
+import { registerServiceWorker } from './lib/service-worker';
 
 
 StatusBar.setOverlaysWebView({ overlay: false });
 StatusBar.setStyle({ style: Style.Dark });
+
+initializeOfflineHttp();
+registerServiceWorker();
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 

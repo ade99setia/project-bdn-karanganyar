@@ -1,0 +1,2 @@
+Generate Splash Screen
+npx capacitor-assets generate

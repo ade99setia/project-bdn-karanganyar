@@ -454,18 +454,33 @@ export default function SalesRecord({ attendanceToday, recentVisits, user, serve
         try {
             const { latitude, longitude } = pos.coords;
 
-            const res = await axios.post('sales/utils/nearby-customers', {
+            const res = await axios.post('/sales/utils/nearby-customers', {
                 lat: latitude,
                 lng: longitude
             });
-            setNearbyCustomers(res.data);
 
-            if (res.data.length > 0) {
+            // Validasi response adalah array
+            const customers = Array.isArray(res.data) ? res.data : res.data.data || [];
+
+            setNearbyCustomers(customers);
+
+            if (customers.length > 0) {
                 setCustomerMode('database');
             } else {
                 setCustomerMode('manual');
             }
-        } catch {
+        } catch (error: unknown) {
+            console.error('❌ Error fetching nearby customers:', error);
+
+            // Show error alert untuk debug
+            if (error instanceof Error) {
+                showAlert(
+                    'Gagal Mengambil Lokasi Terdekat',
+                    `Error: ${error.message || 'Tidak ada customer terdekat dalam radius 2km'}`,
+                    'warning'
+                );
+            }
+
             setCustomerMode('manual');
         } finally {
             setIsLoadingCustomers(false);
@@ -915,21 +930,21 @@ export default function SalesRecord({ attendanceToday, recentVisits, user, serve
                                 </div>
                                 <div>
                                     <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50 tracking-tight leading-tight">
-                                        Tambahk Laporan Kunjungan
+                                        Tambah Laporan Kunjungan
                                     </h3>
                                     <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
                                         Catat aktivitas kunjungan harian
                                     </p>
                                 </div>
-                            </div>
 
-                            <button
-                                onClick={() => setOpenVisit(false)}
-                                className="absolute right-4 p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800/70 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
-                                aria-label="Tutup"
-                            >
-                                <X size={20} strokeWidth={2.5} />
-                            </button>
+                                <button
+                                    onClick={() => setOpenVisit(false)}
+                                    className="absolute right-4 p-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800/70 text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+                                    aria-label="Tutup"
+                                >
+                                    <X size={20} strokeWidth={2.5} />
+                                </button>
+                            </div>
                         </div>
 
                         <div className="p-6 space-y-7 overflow-y-auto thin-scrollbar">

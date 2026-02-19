@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { Link, usePage } from '@inertiajs/react';
-import { PhoneCall, LayoutGrid, MonitorCheck } from 'lucide-react';
+import { PhoneCall, LayoutGrid, MonitorCheck, RefreshCcwDot } from 'lucide-react';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -16,14 +16,6 @@ import {
 // import { dashboard } from '@/routes';
 import type { NavItem, SharedData } from '@/types';
 import AppLogo from './app-logo';
-
-const footerNavItems: NavItem[] = [
-    {
-        title: 'Hubungi Kami',
-        href: 'https://wa.me/6285600190898?text=Halo%20Admin%20BDN%20Karanganyar%2C%20saya%20ingin%20bertanya%20tentang%20aplikasi.',
-        icon: PhoneCall,
-    },
-];
 
 export function AppSidebar() {
     const { auth } = usePage<SharedData>().props;
@@ -51,6 +43,20 @@ export function AppSidebar() {
                 icon: MonitorCheck,
             },
         ]),
+    ];
+
+
+    const footerNavItems: NavItem[] = [
+        {
+            title: 'Hubungi Kami',
+            href: 'https://wa.me/6285600190898?text=Halo%20Admin%20BDN%20Karanganyar%2C%20saya%20ingin%20bertanya%20tentang%20aplikasi.',
+            icon: PhoneCall,
+        },
+        {
+            title: 'Sync Center',
+            href: `/${auth.user.role}/sync-center`,
+            icon: RefreshCcwDot,
+        },
     ];
 
     return (

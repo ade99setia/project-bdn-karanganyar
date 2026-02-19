@@ -43,6 +43,10 @@ export default function FaceEnrollmentModal({ isOpen, onClose, user }: FaceEnrol
     const [capturedDescriptor, setCapturedDescriptor] = useState<Float32Array | null>(null);
     const [capturedImage, setCapturedImage] = useState<string | null>(null);
 
+    // NEW: Status tracking untuk feedback yang jelas
+    const [detectionStatus, setDetectionStatus] = useState<'idle' | 'detecting' | 'detected' | 'failed'>('idle');
+    const [faceQuality, setFaceQuality] = useState<'good' | 'poor' | null>(null);
+
     // 1. Load Model (Hanya detector & landmark yang ringan)
     useEffect(() => {
         let isMounted = true;
@@ -130,14 +134,13 @@ export default function FaceEnrollmentModal({ isOpen, onClose, user }: FaceEnrol
     const captureAndValidateFace = async () => {
         if (!videoRef.current || !user) return;
         setIsProcessing(true);
+        setDetectionStatus('detecting');
 
         try {
             const video = videoRef.current;
 
-            // OPTIMISASI DETEKSI:
-            // Gunakan inputSize lebih kecil (misal 224 atau 320) agar deteksi instan
             const options = new faceapi.TinyFaceDetectorOptions({
-                inputSize: 320, // Semakin kecil semakin cepat, tapi kurang akurat jarak jauh
+                inputSize: 320,
                 scoreThreshold: 0.5
             });
 
@@ -146,22 +149,41 @@ export default function FaceEnrollmentModal({ isOpen, onClose, user }: FaceEnrol
                 .withFaceLandmarks()
                 .withFaceDescriptor();
 
+            // ❌ WAJAH TIDAK TERDETEKSI
             if (!detection) {
-                toast.error("Wajah tidak terdeteksi! Pastikan cahaya cukup dan wajah terlihat jelas.", {
+                setDetectionStatus('failed');
+                setFaceQuality(null);
+                toast.error("Wajah tidak terdeteksi! Coba ulangi.", {
                     icon: <AlertCircle className="text-yellow-500" />
                 });
                 setIsProcessing(false);
                 return;
             }
 
-            // Jika wajah valid, kita capture gambarnya
+            // ✅ VALIDASI KUALITAS WAJAH
+            const confidence = detection.detection.score;
+            const isHighQuality = confidence > 0.75;
+
+            setFaceQuality(isHighQuality ? 'good' : 'poor');
+
+            // Jika kualitas kurang baik, warning tapi tetap lanjut
+            if (!isHighQuality) {
+                setDetectionStatus('detected');
+                toast.error("Kualitas deteksi sedang - coba posisi yang lebih ideal", {
+                    icon: <AlertCircle className="text-amber-500" />
+                });
+            } else {
+                setDetectionStatus('detected');
+                toast.success("Wajah terdeteksi dengan kualitas sempurna!");
+            }
+
+            // Capture gambar
             const canvas = document.createElement('canvas');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             const ctx = canvas.getContext('2d');
 
             if (ctx) {
-                // Flip horizontal agar sesuai mirror effect
                 ctx.translate(canvas.width, 0);
                 ctx.scale(-1, 1);
                 ctx.drawImage(video, 0, 0);
@@ -169,13 +191,12 @@ export default function FaceEnrollmentModal({ isOpen, onClose, user }: FaceEnrol
 
             setCapturedImage(canvas.toDataURL('image/png'));
             setCapturedDescriptor(detection.descriptor);
-
-            // Matikan kamera setelah capture sukses untuk hemat baterai
             stopCamera();
 
         } catch (error) {
             console.error(error);
-            toast.error("Gagal memproses gambar.");
+            setDetectionStatus('failed');
+            toast.error("Gagal memproses gambar wajah.");
         } finally {
             setIsProcessing(false);
         }
@@ -219,7 +240,8 @@ export default function FaceEnrollmentModal({ isOpen, onClose, user }: FaceEnrol
             }
         } catch (error) {
             console.error(error);
-            toast.error("Gagal memproses atau menyimpan data.");
+            toast.error('Koneksi/server bermasalah. Data wajah disimpan lokal untuk sinkronisasi nanti.');
+            onClose();
         } finally {
             setIsProcessing(false);
         }
@@ -228,7 +250,8 @@ export default function FaceEnrollmentModal({ isOpen, onClose, user }: FaceEnrol
     const retake = () => {
         setCapturedImage(null);
         setCapturedDescriptor(null);
-        // Delay sedikit agar state bersih sebelum start kamera lagi
+        setDetectionStatus('idle');
+        setFaceQuality(null);
         setTimeout(() => startCamera(), 100);
     };
 
@@ -286,9 +309,9 @@ export default function FaceEnrollmentModal({ isOpen, onClose, user }: FaceEnrol
                             />
                         )}
 
-                        {/* Static Overlay Guide */}
+                        {/* Static Overlay Guide + Status Info - MINIMAL */}
                         {!capturedImage && isCameraReady && (
-                            <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                            <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center gap-16">
                                 {/* Kotak Panduan Statis */}
                                 <div className="w-64 h-64 sm:w-80 sm:h-80 border-2 border-white/30 rounded-3xl relative">
                                     <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-indigo-500 rounded-tl-2xl -mt-0.5 -ml-0.5"></div>
@@ -296,53 +319,108 @@ export default function FaceEnrollmentModal({ isOpen, onClose, user }: FaceEnrol
                                     <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-indigo-500 rounded-bl-2xl -mb-0.5 -ml-0.5"></div>
                                     <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-indigo-500 rounded-br-2xl -mb-0.5 -mr-0.5"></div>
                                 </div>
-                                <p className="absolute bottom-32 bg-black/50 px-4 py-2 rounded-full text-white text-sm backdrop-blur-sm">
-                                    Posisikan wajah di tengah
-                                </p>
+
+                                {/* Status Message - Bottom Small */}
+                                {detectionStatus === 'idle' && (
+                                    <div className="absolute bottom-40 bg-black/40 backdrop-blur-sm px-4 py-2 rounded-full text-white text-xs font-medium">
+                                        📍 Posisikan wajah di tengah
+                                    </div>
+                                )}
+
+                                {detectionStatus === 'detecting' && (
+                                    <div className="absolute bottom-40 bg-amber-900/40 backdrop-blur-sm px-4 py-2 rounded-full text-amber-100 text-xs font-medium animate-pulse">
+                                        🔍 Mendeteksi...
+                                    </div>
+                                )}
+
+                                {detectionStatus === 'failed' && (
+                                    <div className="px-4 py-3 rounded-xl bg-red-900/50 backdrop-blur-sm border border-red-400/50 text-red-100 text-xs text-center max-w-xs">
+                                        <p className="font-semibold">❌ Wajah tidak terdeteksi</p>
+                                        <p className="text-red-200/70 text-[10px] mt-1">Cek cahaya, posisi, & jarak kamera</p>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
                 </div>
 
                 {/* --- FOOTER CONTROLS --- */}
-                <div className="absolute bottom-0 left-0 right-0 p-8 pb-10 flex justify-center items-center bg-linear-to-t from-black/90 via-black/50 to-transparent z-40">
+                <div className="absolute bottom-0 left-0 right-0 p-6 pb-8 flex flex-col justify-center items-center gap-3 bg-linear-to-t from-black/90 via-black/50 to-transparent z-40">
 
                     {!capturedDescriptor ? (
-                        <div className="flex items-center gap-8">
+                        // ❌ WAJAH BELUM TERDETEKSI
+                        <div className="flex flex-col items-center gap-3 w-full">
+                            {/* Instruksi Singkat */}
+                            <div className="text-center text-white/70 text-xs">
+                                Tekan tombol putih untuk ambil foto
+                            </div>
+
                             {/* Tombol Capture */}
                             <button
                                 onClick={captureAndValidateFace}
                                 disabled={!isModelLoaded || !isCameraReady || isProcessing}
                                 className={cn(
-                                    "w-20 h-20 rounded-full border-4 border-white/30 flex items-center justify-center transition-all duration-200",
-                                    isProcessing ? "scale-95 opacity-80" : "active:scale-90 hover:border-white"
+                                    "w-20 h-20 rounded-full border-4 flex items-center justify-center transition-all duration-200",
+                                    isProcessing ? "scale-95 opacity-80 border-indigo-500" : "border-white/30 hover:border-white active:scale-90"
                                 )}
                             >
                                 <div className={cn(
-                                    "w-16 h-16 rounded-full bg-white transition-all",
+                                    "w-16 h-16 rounded-full transition-all",
                                     isProcessing ? "bg-indigo-500 animate-pulse" : "bg-white"
                                 )} />
                             </button>
                         </div>
                     ) : (
-                        <div className="flex items-center gap-4 w-full max-w-sm">
-                            <Button
-                                variant="outline"
-                                onClick={retake}
-                                disabled={isProcessing}
-                                className="flex-1 bg-white/10 border-white/10 text-white hover:bg-white/20 h-12 rounded-full backdrop-blur-md"
-                            >
-                                <RefreshCw className="w-4 h-4 mr-2" />
-                                Ulang
-                            </Button>
+                        // ✅ WAJAH TERDETEKSI - ARAHKAN KE SIMPAN
+                        <div className="flex flex-col items-center gap-3 w-full">
+                            {/* Status Message - Singkat & Jelas */}
+                            <div className={cn(
+                                "px-4 py-2 rounded-lg backdrop-blur-sm text-xs font-semibold text-center max-w-sm",
+                                faceQuality === 'good'
+                                    ? "bg-green-900/60 border border-green-400/50 text-green-100"
+                                    : "bg-amber-900/60 border border-amber-400/50 text-amber-100"
+                            )}>
+                                {faceQuality === 'good'
+                                    ? "✅ Wajah terdeteksi sempurna"
+                                    : "⚠️ Wajah terdeteksi (kualitas sedang)"}
+                            </div>
 
-                            <Button
-                                onClick={saveToServer}
-                                disabled={isProcessing}
-                                className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white h-12 rounded-full shadow-lg shadow-indigo-500/20"
-                            >
-                                {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : "Simpan"}
-                            </Button>
+                            {/* Action Buttons */}
+                            <div className="flex items-center gap-3 w-full max-w-sm px-4">
+                                <button
+                                    onClick={retake}
+                                    disabled={isProcessing}
+                                    className={cn(
+                                        "flex-1 px-3 py-2.5 rounded-full text-xs font-semibold transition-all",
+                                        "bg-white/10 border border-white/20 text-white hover:bg-white/20 backdrop-blur-md",
+                                        isProcessing && "opacity-50 cursor-not-allowed"
+                                    )}
+                                >
+                                    <RefreshCw className="w-3.5 h-3.5 mr-1.5 inline" />
+                                    Ulang
+                                </button>
+
+                                {/* TOMBOL SIMPAN - ENABLED JIKA WAJAH TERDETEKSI */}
+                                <button
+                                    onClick={saveToServer}
+                                    disabled={!capturedDescriptor || isProcessing}
+                                    className={cn(
+                                        "flex-1 px-3 py-2.5 rounded-full text-xs font-semibold transition-all shadow-lg",
+                                        capturedDescriptor && !isProcessing
+                                            ? "bg-indigo-600 hover:bg-indigo-500 text-white shadow-indigo-500/30 active:scale-95"
+                                            : "bg-gray-600 text-gray-300 cursor-not-allowed opacity-50"
+                                    )}
+                                >
+                                    {isProcessing ? (
+                                        <>
+                                            <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5 inline" />
+                                            Proses...
+                                        </>
+                                    ) : (
+                                        "Simpan"
+                                    )}
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
