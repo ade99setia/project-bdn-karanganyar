@@ -14,6 +14,7 @@ use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
 use Laravel\Fortify\Contracts\LoginResponse;
 use Laravel\Fortify\Contracts\LogoutResponse;
+use Laravel\Fortify\Contracts\RegisterResponse;
 
 class FortifyServiceProvider extends ServiceProvider
 {
@@ -40,6 +41,11 @@ class FortifyServiceProvider extends ServiceProvider
                 {
                     $user = $request->user();
 
+                    // If email not verified, redirect to verification page
+                    if (!$user->hasVerifiedEmail()) {
+                        return redirect('/email/verify');
+                    }
+
                     if ($user->role_name) {
                         return redirect('/' . $user->role_name . '/dashboard');
                     }
@@ -54,6 +60,16 @@ class FortifyServiceProvider extends ServiceProvider
                 public function toResponse($request)
                 {
                     return redirect()->route('login');
+                }
+            };
+        });
+
+        $this->app->singleton(RegisterResponse::class, function () {
+            return new class implements RegisterResponse {
+                public function toResponse($request)
+                {
+                    // Redirect to email verification page after registration
+                    return redirect('/email/verify');
                 }
             };
         });

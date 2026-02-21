@@ -3,6 +3,7 @@ import axios, {
     type AxiosRequestConfig,
     type AxiosResponse,
 } from 'axios';
+import toast from 'react-hot-toast';
 
 export interface QueuedRequest {
     id: string;
@@ -245,11 +246,17 @@ export function initializeOfflineHttp() {
     axios.interceptors.request.use(async (config) => {
         const method = String(config.method || 'get').toLowerCase();
         const isReplay = Boolean((config.headers as Record<string, string> | undefined)?.['x-offline-replay']);
+        const isInertiaRequest = Boolean(getHeaderValue(config.headers, 'X-Inertia'));
 
         if (!isReplay && !navigator.onLine && MUTATING_METHODS.has(method)) {
             const queued = await enqueueRequest(config);
 
             if (queued) {
+                if (isInertiaRequest) {
+                    toast.success('Permintaan disimpan offline dan akan disinkronkan saat online.');
+                    return Promise.reject(new AxiosError('OFFLINE_QUEUED_INERTIA', 'ERR_CANCELED', config));
+                }
+
                 const syntheticResponse: AxiosResponse = {
                     data: {
                         queuedOffline: true,
@@ -289,6 +296,10 @@ export function initializeOfflineHttp() {
         async (error: AxiosError) => {
             if (error.message === 'OFFLINE_QUEUED' && error.response) {
                 return error.response;
+            }
+
+            if (error.message === 'OFFLINE_QUEUED_INERTIA') {
+                return Promise.reject(error);
             }
 
             const config = error.config;

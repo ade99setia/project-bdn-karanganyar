@@ -1,5 +1,6 @@
 import { usePage } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
+import { Toaster } from 'react-hot-toast';
 import MobileGate from '@/components/mobile-gate';
 import AlertModal from '@/components/modal/alert-modal';
 import ThemeToggle from "@/components/ui/toggle-theme";
@@ -65,6 +66,8 @@ export default function AppLayoutMobile({ children, breadcrumbs, ...props }: App
                 <div className="fixed bottom-4 right-4 z-50">
                     <ThemeToggle />
                 </div>
+
+                <Toaster position="top-right" />
 
                 <AlertModal
                     isOpen={alertConfig.isOpen}

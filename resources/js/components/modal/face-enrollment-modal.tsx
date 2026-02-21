@@ -260,7 +260,7 @@ export default function FaceEnrollmentModal({ isOpen, onClose, user }: FaceEnrol
             <DialogContent className="w-screen! h-screen! max-w-none! max-h-none! rounded-none! border-0 p-0 m-0 bg-black flex flex-col overflow-hidden">
 
                 {/* --- HEADER --- */}
-                <div className="absolute top-0 left-0 right-0 z-20 p-4 flex justify-between items-start bg-linear-to-b from-black/80 to-transparent">
+                <div className="absolute top-10 left-0 right-0 z-20 p-4 flex justify-between items-start bg-linear-to-b from-black/80 to-transparent">
                     <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2 text-indigo-400">
                             <ScanFace className="w-6 h-6" />

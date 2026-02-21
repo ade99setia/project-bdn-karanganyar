@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import { Form, Head } from '@inertiajs/react';
 import InputError from '@/components/input-error';
 import TextLink from '@/components/text-link';
@@ -22,6 +23,55 @@ export default function Login({
     canResetPassword,
     canRegister,
 }: Props) {
+    async function clearLocalAppData() {
+        localStorage.clear();
+        sessionStorage.clear();
+
+        document.cookie.split(';').forEach((cookieChunk) => {
+            const key = cookieChunk.split('=')[0]?.trim();
+            if (!key) {
+                return;
+            }
+
+            document.cookie = `${key}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+        });
+
+        if ('caches' in window) {
+            const cacheKeys = await caches.keys();
+            await Promise.all(cacheKeys.map((cacheKey) => caches.delete(cacheKey)));
+        }
+
+        if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(registrations.map((registration) => registration.unregister()));
+        }
+
+        if ('indexedDB' in window) {
+            const idbWithDatabases = window.indexedDB as IDBFactory & {
+                databases?: () => Promise<Array<{ name?: string }>>;
+            };
+
+            if (typeof idbWithDatabases.databases === 'function') {
+                const databases = await idbWithDatabases.databases();
+
+                await Promise.all(
+                    (databases || []).map((database) => {
+                        if (!database?.name) {
+                            return Promise.resolve();
+                        }
+
+                        return new Promise<void>((resolve) => {
+                            const request = window.indexedDB.deleteDatabase(database.name!);
+                            request.onsuccess = () => resolve();
+                            request.onerror = () => resolve();
+                            request.onblocked = () => resolve();
+                        });
+                    }),
+                );
+            }
+        }
+    }
+
     return (
         <AuthLayout
             title="Log in to your account"
@@ -32,6 +82,13 @@ export default function Login({
             <Form
                 {...store.form()}
                 resetOnSuccess={['password']}
+                onSuccess={async () => {
+                    if (!Capacitor.isNativePlatform()) {
+                        return;
+                    }
+
+                    await clearLocalAppData();
+                }}
                 className="flex flex-col gap-6"
             >
                 {({ processing, errors }) => (

@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
         <meta-data android:name="android.max_aspect" android:value="2.1" />
 
-        {{-- Inline script to detect system dark mode preference and apply it immediately --}}
+        {{-- # Inline script to detect system dark mode preference and apply it immediately --}}
         <script>
             (function() {
                 const appearance = '{{ $appearance ?? "system" }}';

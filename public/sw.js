@@ -37,6 +37,7 @@ self.addEventListener('activate', (event) => {
 async function networkFirst(request, cacheName, fallbackPath) {
     const cache = await caches.open(cacheName);
     const requestUrl = new URL(request.url);
+    const isDocumentRequest = request.mode === 'navigate' || request.destination === 'document';
 
     async function fallbackResponse() {
         if (!fallbackPath) {
@@ -68,6 +69,10 @@ async function networkFirst(request, cacheName, fallbackPath) {
             return fallback;
         }
 
+        if (isDocumentRequest) {
+            return Response.redirect(buildOfflineUrl(requestUrl), 302);
+        }
+
         return response;
     } catch {
         const cached = await cache.match(request, { ignoreSearch: true });
@@ -78,6 +83,10 @@ async function networkFirst(request, cacheName, fallbackPath) {
         const fallback = await fallbackResponse();
         if (fallback) {
             return fallback;
+        }
+
+        if (isDocumentRequest) {
+            return Response.redirect(buildOfflineUrl(requestUrl), 302);
         }
 
         throw new Error('No network and no cache');
