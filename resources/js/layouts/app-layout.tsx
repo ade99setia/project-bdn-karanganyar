@@ -1,5 +1,6 @@
 import { usePage } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
+import { Toaster } from 'react-hot-toast';
 import AlertModal from '@/components/modal/alert-modal';
 import ThemeToggle from "@/components/ui/toggle-theme";
 import AppLayoutTemplate from '@/layouts/app/app-sidebar-layout';
@@ -63,6 +64,8 @@ export default function AppLayout({ children, breadcrumbs, ...props }: AppLayout
             <div className="fixed bottom-4 right-4 z-50">
                 <ThemeToggle />
             </div>
+
+            <Toaster position="top-right" />
 
             <AlertModal
                 isOpen={alertConfig.isOpen}

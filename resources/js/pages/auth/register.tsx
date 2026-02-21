@@ -1,4 +1,5 @@
-import { Form, Head } from '@inertiajs/react';
+import { Form, Head, router } from '@inertiajs/react';
+import { toast } from 'react-hot-toast';
 import InputError from '@/components/input-error';
 import TextLink from '@/components/text-link';
 import { Button } from '@/components/ui/button';
@@ -8,6 +9,7 @@ import { Spinner } from '@/components/ui/spinner';
 import AuthLayout from '@/layouts/auth-layout';
 import { login } from '@/routes';
 import { store } from '@/routes/register';
+import { notice } from '@/routes/verification';
 
 export default function Register() {
     return (
@@ -20,6 +22,10 @@ export default function Register() {
                 {...store.form()}
                 resetOnSuccess={['password', 'password_confirmation']}
                 disableWhileProcessing
+                onSuccess={() => {
+                    toast.success('Account created! Please verify your email.');
+                    router.visit(notice());
+                }}
                 className="flex flex-col gap-6"
             >
                 {({ processing, errors }) => (

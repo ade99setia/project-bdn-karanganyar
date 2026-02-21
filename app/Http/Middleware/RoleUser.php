@@ -24,7 +24,7 @@ class RoleUser
         $employee = $user->employee;
 
         if (!$employee || $employee->status !== $status) {
-            abort(403, 'Status karyawan saat ini adalah ' . $employee->status . '. Silahkan hubungi admin untuk informasi lebih lanjut.');
+            abort(403, 'Status akun saat ini adalah ' . $employee->status . '. Silahkan hubungi admin untuk meminta diaktifkan kembali / untuk informasi lebih lanjut.');
         }
 
         return $next($request);

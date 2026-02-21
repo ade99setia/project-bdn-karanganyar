@@ -1,6 +1,8 @@
+import { Capacitor } from '@capacitor/core';
 import { Head } from '@inertiajs/react';
 import { CheckCircle2, Clock3, RefreshCw, Trash2, Wifi, WifiOff } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import AlertModal from '@/components/modal/alert-modal';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useOfflineSyncStatus } from '@/hooks/use-offline-sync-status';
@@ -20,8 +22,11 @@ interface Props {
 }
 
 export default function SyncCenter({ role }: Props) {
+    const isNativeApp = Capacitor.isNativePlatform();
     const [loadingSync, setLoadingSync] = useState(false);
     const [loadingClear, setLoadingClear] = useState(false);
+    const [isResetting, setIsResetting] = useState(false);
+    const [showClearConfirm, setShowClearConfirm] = useState(false);
     const [lastActionText, setLastActionText] = useState('');
     const [methodFilter, setMethodFilter] = useState<'all' | 'post' | 'put' | 'patch' | 'delete'>('all');
     const [endpointKeyword, setEndpointKeyword] = useState('');
@@ -101,6 +106,79 @@ export default function SyncCenter({ role }: Props) {
         }
     };
 
+    async function clearLocalAppData() {
+        localStorage.clear();
+        sessionStorage.clear();
+
+        document.cookie.split(';').forEach((cookieChunk) => {
+            const key = cookieChunk.split('=')[0]?.trim();
+            if (!key) {
+                return;
+            }
+
+            document.cookie = `${key}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+        });
+
+        if ('caches' in window) {
+            const cacheKeys = await caches.keys();
+            await Promise.all(cacheKeys.map((cacheKey) => caches.delete(cacheKey)));
+        }
+
+        if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(registrations.map((registration) => registration.unregister()));
+        }
+
+        if ('indexedDB' in window) {
+            const idbWithDatabases = window.indexedDB as IDBFactory & {
+                databases?: () => Promise<Array<{ name?: string }>>;
+            };
+
+            if (typeof idbWithDatabases.databases === 'function') {
+                const databases = await idbWithDatabases.databases();
+
+                await Promise.all(
+                    (databases || []).map((database) => {
+                        if (!database?.name) {
+                            return Promise.resolve();
+                        }
+
+                        return new Promise<void>((resolve) => {
+                            const request = window.indexedDB.deleteDatabase(database.name!);
+                            request.onsuccess = () => resolve();
+                            request.onerror = () => resolve();
+                            request.onblocked = () => resolve();
+                        });
+                    }),
+                );
+            }
+        }
+    }
+
+    async function resetApplicationData() {
+        if (isResetting) {
+            return;
+        }
+
+        setIsResetting(true);
+        setShowClearConfirm(false);
+
+        try {
+            await clearLocalAppData();
+            window.location.replace('/offline.html?after_clear=1');
+        } catch {
+            window.location.replace('/offline.html?after_clear=1&status=partial');
+        }
+    }
+
+    function requestClearApplicationData() {
+        if (isResetting) {
+            return;
+        }
+
+        setShowClearConfirm(true);
+    }
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Sync Center" />
@@ -157,6 +235,19 @@ export default function SyncCenter({ role }: Props) {
                             <Trash2 className="size-4" />
                             Hapus Antrean
                         </Button>
+
+                        {isNativeApp && (
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={requestClearApplicationData}
+                                    disabled={isResetting}
+                                    className="inline-block rounded-sm border border-[#8b1d1d] bg-[#b42318] px-5 py-1.5 text-xs leading-normal text-white hover:bg-[#991b1b] disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#ef4444] dark:bg-[#b91c1c] dark:hover:bg-[#991b1b]"
+                                >
+                                    {isResetting ? 'Membersihkan...' : 'Clear App'}
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     {lastActionText && (
@@ -252,6 +343,18 @@ export default function SyncCenter({ role }: Props) {
                     )}
                 </Card>
             </div>
+
+            <AlertModal
+                isOpen={showClearConfirm}
+                onClose={() => setShowClearConfirm(false)}
+                title="Konfirmasi Clear App"
+                message="Data lokal, cache, dan sesi aplikasi akan dihapus. Aplikasi akan kembali ke halaman offline."
+                type="warning"
+                primaryButtonText={isResetting ? 'Membersihkan...' : 'Ya, Clear App'}
+                onPrimaryClick={resetApplicationData}
+                secondaryButtonText="Batal"
+                onSecondaryClick={() => setShowClearConfirm(false)}
+            />
         </AppLayout>
     );
 }

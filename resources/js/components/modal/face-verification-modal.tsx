@@ -334,7 +334,7 @@ export default function FaceVerificationModal({
                     <div className="absolute inset-0 flex flex-col justify-between p-5 md:p-8 z-10 pointer-events-none">
 
                         {/* Header */}
-                        <div className="flex items-center justify-between pointer-events-auto">
+                        <div className="flex top-10 items-center justify-between pointer-events-auto">
                             <div className="flex items-center gap-3 bg-black/40 backdrop-blur-lg px-4 py-2 rounded-full border border-cyan-500/20">
                                 <ScanFace className="h-5 w-5 text-cyan-400" />
                                 <span className="text-base font-semibold text-white/90">{userName}</span>
