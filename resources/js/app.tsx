@@ -1,3 +1,5 @@
+import { App } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { createInertiaApp } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
@@ -14,6 +16,42 @@ StatusBar.setStyle({ style: Style.Dark });
 
 initializeOfflineHttp();
 registerServiceWorker();
+
+const verificationPathPattern = /^\/email\/verify\//;
+
+const navigateFromIncomingUrl = (incomingUrl: string) => {
+    try {
+        const parsedUrl = new URL(incomingUrl);
+
+        if (!verificationPathPattern.test(parsedUrl.pathname)) {
+            return;
+        }
+
+        const targetUrl = `${parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`;
+
+        if (window.location.pathname + window.location.search + window.location.hash === targetUrl) {
+            return;
+        }
+
+        window.location.href = targetUrl;
+    } catch {
+        // Ignore malformed incoming URLs.
+    }
+};
+
+if (Capacitor.isNativePlatform()) {
+    void App.getLaunchUrl().then((launchUrl) => {
+        if (launchUrl?.url) {
+            navigateFromIncomingUrl(launchUrl.url);
+        }
+    });
+
+    void App.addListener('appUrlOpen', ({ url }) => {
+        if (url) {
+            navigateFromIncomingUrl(url);
+        }
+    });
+}
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 

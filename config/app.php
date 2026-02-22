@@ -54,6 +54,12 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    'android_app_link' => [
+        'enabled' => (bool) env('ANDROID_APP_LINK_ENABLED', false),
+        'package_name' => env('ANDROID_APP_LINK_PACKAGE_NAME', 'com.example.appbagusdinamikanusantara'),
+        'sha256_fingerprints' => array_values(array_filter(array_map('trim', explode(',', (string) env('ANDROID_APP_LINK_SHA256_FINGERPRINTS', ''))))),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

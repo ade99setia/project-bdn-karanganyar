@@ -102,4 +102,9 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasOne(Employee::class);
     }
 
+    public function kioskTokens()
+    {
+        return $this->hasMany(KioskToken::class);
+    }
+
 }

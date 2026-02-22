@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
+use App\Http\Controllers\AuthFlowController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\SalesAttendanceController;
 use App\Http\Controllers\SalesVisitController;
@@ -19,12 +20,30 @@ Route::get('/', function () {
     ]);
 })->name('home');
 
+// Android App Link Route
+Route::get('/.well-known/assetlinks.json', [AuthFlowController::class, 'assetLinks']);
+
+// Authenticated routes for email verification and kiosk login
+Route::middleware(['auth'])->group(function () {
+    Route::post('/email/verification-notification/app', [AuthFlowController::class, 'sendVerificationFromApp'])
+        ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class])
+        ->middleware('throttle:6,1')
+        ->name('verification.send.app');
+
+    Route::get('/email/verification-status', [AuthFlowController::class, 'verificationStatus'])
+        ->name('verification.status');
+});
+
+Route::get('/kiosk/{token}', [AuthFlowController::class, 'kioskLogin'])->name('kiosk.login');
+
+Route::middleware(['auth'])->post('/kiosk/generate-link', [AuthFlowController::class, 'generateKioskLink'])
+    ->name('kiosk.generate-link');
+
 // Default route after login, will redirect to role-based dashboard
 Route::get('dashboard', function () {
     // return Inertia::render('dashboard');
     return redirect()->route('profile.edit');
 })->middleware(['auth', 'verified'])->name('dashboard');
-
 
 // Supervisor Routes with Inertia JS
 Route::middleware(['auth', 'verified'])->prefix('supervisor')->group(function () {
