@@ -13,37 +13,13 @@ use App\Http\Controllers\SalesUtilsController;
 use App\Http\Controllers\Utils\NearbyCustomerController;
 use App\Http\Controllers\SupervisorController;
 use App\Http\Controllers\SalesController;
+use Laravel\Fortify\Http\Controllers\TwoFactorAuthenticatedSessionController;
 
 Route::get('/', function () {
     return Inertia::render('welcome', [
         'canRegister' => Features::enabled(Features::registration()),
     ]);
 })->name('home');
-
-// Android App Link Route
-Route::get('/.well-known/assetlinks.json', [AuthFlowController::class, 'assetLinks']);
-
-// Authenticated routes for email verification and kiosk login
-Route::middleware(['auth'])->group(function () {
-    Route::post('/email/verification-notification/app', [AuthFlowController::class, 'sendVerificationFromApp'])
-        ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class])
-        ->middleware('throttle:6,1')
-        ->name('verification.send.app');
-
-    Route::get('/email/verification-status', [AuthFlowController::class, 'verificationStatus'])
-        ->name('verification.status');
-});
-
-Route::get('/kiosk/{token}', [AuthFlowController::class, 'kioskLogin'])->name('kiosk.login');
-
-Route::middleware(['auth'])->post('/kiosk/generate-link', [AuthFlowController::class, 'generateKioskLink'])
-    ->name('kiosk.generate-link');
-
-// Default route after login, will redirect to role-based dashboard
-Route::get('dashboard', function () {
-    // return Inertia::render('dashboard');
-    return redirect()->route('profile.edit');
-})->middleware(['auth', 'verified'])->name('dashboard');
 
 // Supervisor Routes with Inertia JS
 Route::middleware(['auth', 'verified'])->prefix('supervisor')->group(function () {
@@ -86,6 +62,37 @@ Route::middleware(['auth', 'verified'])->prefix('sales')->group(function () {
         ]);
     });
 });
+
+
+// Android App Link Route
+Route::get('/.well-known/assetlinks.json', [AuthFlowController::class, 'assetLinks']);
+
+// Authenticated routes for email verification and kiosk login
+Route::middleware(['auth'])->group(function () {
+    Route::post('/email/verification-notification/app', [AuthFlowController::class, 'sendVerificationFromApp'])
+        ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class])
+        ->middleware('throttle:6,1')
+        ->name('verification.send.app');
+
+    Route::get('/email/verification-status', [AuthFlowController::class, 'verificationStatus'])
+        ->name('verification.status');
+});
+
+Route::post('/two-factor-challenge/app', [TwoFactorAuthenticatedSessionController::class, 'store'])
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class])
+    ->middleware(['guest', 'throttle:two-factor'])
+    ->name('two-factor.login.app');
+
+Route::get('/kiosk/{token}', [AuthFlowController::class, 'kioskLogin'])->name('kiosk.login');
+
+Route::middleware(['auth'])->post('/kiosk/generate-link', [AuthFlowController::class, 'generateKioskLink'])
+    ->name('kiosk.generate-link');
+
+// Default route after login, will redirect to role-based dashboard
+Route::get('dashboard', function () {
+    // return Inertia::render('dashboard');
+    return redirect()->route('profile.edit');
+})->middleware(['auth', 'verified'])->name('dashboard');
 
 
 // Routes for Mataram subdomain

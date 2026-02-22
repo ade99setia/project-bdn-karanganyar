@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { Head } from '@inertiajs/react';
-import { CheckCircle2, Clock3, RefreshCw, Trash2, Wifi, WifiOff } from 'lucide-react';
+import { CheckCircle2, Clock3, RefreshCw, Trash2, Wifi, WifiOff, Eraser } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import AlertModal from '@/components/modal/alert-modal';
 import { Button } from '@/components/ui/button';
@@ -237,16 +237,15 @@ export default function SyncCenter({ role }: Props) {
                         </Button>
 
                         {isNativeApp && (
-                            <div className="flex items-center gap-2">
-                                <button
-                                    type="button"
-                                    onClick={requestClearApplicationData}
-                                    disabled={isResetting}
-                                    className="inline-block rounded-sm border border-[#8b1d1d] bg-[#b42318] px-5 py-1.5 text-xs leading-normal text-white hover:bg-[#991b1b] disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#ef4444] dark:bg-[#b91c1c] dark:hover:bg-[#991b1b]"
-                                >
-                                    {isResetting ? 'Membersihkan...' : 'Clear App'}
-                                </button>
-                            </div>
+                            <Button
+                                variant="destructive"
+                                onClick={requestClearApplicationData}
+                                disabled={isResetting}
+                                className="gap-2"
+                            >
+                                <Eraser className="size-4" />
+                                {isResetting ? 'Membersihkan...' : 'Clear App'}
+                            </Button>
                         )}
                     </div>
 

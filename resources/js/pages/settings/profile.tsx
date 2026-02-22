@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import { Transition } from '@headlessui/react';
 import { Form, Head, usePage, router } from '@inertiajs/react';
 import { ScanFace, Camera } from 'lucide-react';
@@ -12,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
+import AppLayoutMobile from '@/layouts/app-layout-mobile';
 import SettingsLayout from '@/layouts/settings/layout';
 import { edit } from '@/routes/profile';
 import type { BreadcrumbItem, SharedData, User } from '@/types';
@@ -38,8 +40,10 @@ export default function Profile({
     const [isFaceModalOpen, setIsFaceModalOpen] = useState(false);
     const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
 
+    const Layout = Capacitor.isNativePlatform() ? AppLayoutMobile : AppLayout;
+
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <Layout breadcrumbs={breadcrumbs}>
             <Head title="Profile settings" />
 
             <h1 className="sr-only">Profile Settings</h1>
@@ -200,6 +204,6 @@ export default function Profile({
                 />
 
             </SettingsLayout>
-        </AppLayout>
+        </Layout>
     );
 }

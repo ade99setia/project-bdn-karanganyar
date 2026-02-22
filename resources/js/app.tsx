@@ -11,8 +11,10 @@ import { initializeOfflineHttp } from './lib/offline-http';
 import { registerServiceWorker } from './lib/service-worker';
 
 // Set status bar to not overlay the webview and use dark text for better visibility on light backgrounds
-StatusBar.setOverlaysWebView({ overlay: false });
-StatusBar.setStyle({ style: Style.Dark });
+if (Capacitor.isNativePlatform()) {
+    StatusBar.setOverlaysWebView({ overlay: false });
+    StatusBar.setStyle({ style: Style.Dark });
+}
 
 initializeOfflineHttp();
 registerServiceWorker();

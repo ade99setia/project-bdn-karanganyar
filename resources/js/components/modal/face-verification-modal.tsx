@@ -1,9 +1,9 @@
-import * as faceapi from 'face-api.js';
 import { X, Loader2, ScanFace, CheckCircle2, Camera } from 'lucide-react';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import type * as FaceApi from 'face-api.js';
 
 interface Props {
     isOpen: boolean;
@@ -23,6 +23,8 @@ export default function FaceVerificationModal({
     userName,
 }: Props) {
     const videoRef = useRef<HTMLVideoElement>(null);
+    const faceApiRef = useRef<FaceApi | null>(null);
+    const faceApiPromiseRef = useRef<Promise<FaceApi> | null>(null);
     const [isLoadingModels, setIsLoadingModels] = useState(true);
     const [cameraStarted, setCameraStarted] = useState(false);
     const [cameraError, setCameraError] = useState<string | null>(null);
@@ -35,8 +37,12 @@ export default function FaceVerificationModal({
     const stepRef = useRef(step);
     const lastDetectionTimeRef = useRef(0);
     const isProcessingRef = useRef(false);
+    const mismatchCountRef = useRef(0);
     // Ref tambahan untuk menjaga status kamera tanpa menunggu re-render state
     const isCameraActiveRef = useRef(false);
+    const MATCH_THRESHOLD = 0.55;
+    const LIVENESS_MATCH_THRESHOLD = 0.6;
+    const MAX_CONSECUTIVE_MISMATCH = 4;
 
     // Update ref saat state berubah
     useEffect(() => {
@@ -46,6 +52,31 @@ export default function FaceVerificationModal({
     const updateFeedback = useCallback((text: string) => {
         setFeedback((prev) => (prev === text ? prev : text));
     }, []);
+
+    const loadFaceApi = useCallback(async () => {
+        if (faceApiRef.current) return faceApiRef.current;
+        if (!faceApiPromiseRef.current) {
+            faceApiPromiseRef.current = import('face-api.js');
+        }
+        faceApiRef.current = await faceApiPromiseRef.current;
+        return faceApiRef.current;
+    }, []);
+
+    useEffect(() => {
+        if (!cameraStarted || step === 'success') return;
+
+        const stepInstruction: Record<'match' | 'neutral1' | 'smile1' | 'neutral2' | 'smile2', string> = {
+            match: 'Memvalidasi identitas...',
+            neutral1: 'Tahap 1/4 · Posisikan wajah netral 😐',
+            smile1: 'Tahap 2/4 · Tersenyum lebar 😄',
+            neutral2: 'Tahap 3/4 · Kembali netral 😐',
+            smile2: 'Tahap 4/4 · Tersenyum sekali lagi 😄',
+        };
+
+        if (step in stepInstruction) {
+            updateFeedback(stepInstruction[step as keyof typeof stepInstruction]);
+        }
+    }, [cameraStarted, step, updateFeedback]);
 
     // FUNGSI 1: Stop Kamera yang Stabil
     const stopCamera = useCallback(() => {
@@ -88,41 +119,50 @@ export default function FaceVerificationModal({
             case 'neutral1': return 1;
             case 'smile1': return 2;
             case 'neutral2': return 3;
-            case 'smile2': return 4;
-            case 'success': return 4;
+            case 'smile2':
+            case 'success':
+                return 4;
             default: return 0;
         }
     };
 
+    const getProgressLabel = () => {
+        const currentStep = getStepNumber();
+        if (currentStep === 0) return 'Memvalidasi identitas...';
+        return `Langkah ${currentStep} / 4`;
+    };
+
+    const verifyCurrentFaceOwner = useCallback((faceapi: FaceApi, descriptor: Float32Array, threshold = MATCH_THRESHOLD) => {
+        if (!targetDescriptorRef.current) return false;
+        const distance = faceapi.euclideanDistance(descriptor, targetDescriptorRef.current);
+        return distance <= threshold;
+    }, [MATCH_THRESHOLD]);
+
     // FUNGSI 3: Logika Liveness (Tantangan Wajah)
     const runLivenessChallenge = useCallback(
-        (detection: faceapi.WithFaceExpressions<{ expressions: faceapi.FaceExpressions }>) => {
+        (detection: FaceApi.WithFaceExpressions<{ expressions: FaceApi.FaceExpressions }>) => {
             const { expressions } = detection;
             const currentStep = stepRef.current;
 
             switch (currentStep) {
                 case 'match':
                 case 'neutral1':
-                    updateFeedback("Posisikan wajah netral 😐");
                     if (expressions.neutral > 0.6) setStep('smile1');
                     break;
                 case 'smile1':
-                    updateFeedback("Tersenyum lebar 😄");
                     if (expressions.happy > 0.65) setStep('neutral2');
                     break;
                 case 'neutral2':
-                    updateFeedback("Kembali netral 😐");
                     if (expressions.neutral > 0.6) setStep('smile2');
                     break;
                 case 'smile2':
-                    updateFeedback("Tersenyum sekali lagi 😄");
                     if (expressions.happy > 0.65) handleSuccess();
                     break;
                 default:
                     break;
             }
         },
-        [handleSuccess, updateFeedback]
+        [handleSuccess]
     );
 
     // FUNGSI 4: Loop Deteksi Wajah
@@ -155,6 +195,7 @@ export default function FaceVerificationModal({
         isProcessingRef.current = true;
 
         try {
+            const faceapi = await loadFaceApi();
             // Menggunakan TinyFaceDetector agar cepat di mobile
             const useTinyModel = new faceapi.TinyFaceDetectorOptions({ inputSize: 128, scoreThreshold: 0.5 });
 
@@ -170,12 +211,12 @@ export default function FaceVerificationModal({
                     .withFaceExpressions();
 
                 if (result) {
-                    const distance = faceapi.euclideanDistance(result.descriptor, targetDescriptorRef.current!);
-                    // Ambang batas kemiripan (0.6 adalah standar, 0.4 sangat ketat)
-                    if (distance > 0.55) {
+                    if (!verifyCurrentFaceOwner(faceapi, result.descriptor)) {
                         updateFeedback("Wajah tidak cocok / Bukan pemilik akun");
+                        mismatchCountRef.current = 0;
                     } else {
                         // Wajah cocok, lanjut ke liveness check
+                        mismatchCountRef.current = 0;
                         setStep('neutral1');
                         // Langsung cek ekspresi juga biar responsif
                         runLivenessChallenge(result);
@@ -184,16 +225,26 @@ export default function FaceVerificationModal({
                     updateFeedback("Posisikan wajah di tengah");
                 }
             } else {
-                // Step liveness challenge (tidak perlu hitung descriptor lagi, berat)
+                // Step liveness challenge: tetap verifikasi descriptor agar tidak bisa digantikan wajah lain
                 detection = await faceapi
                     .detectSingleFace(video, useTinyModel)
                     .withFaceLandmarks()
+                    .withFaceDescriptor()
                     .withFaceExpressions();
 
                 if (detection) {
-                    runLivenessChallenge(detection);
-                } else {
-                    updateFeedback("Wajah tidak terdeteksi");
+                    const isSamePerson = verifyCurrentFaceOwner(faceapi, detection.descriptor, LIVENESS_MATCH_THRESHOLD);
+
+                    if (!isSamePerson) {
+                        mismatchCountRef.current += 1;
+                        if (mismatchCountRef.current >= MAX_CONSECUTIVE_MISMATCH) {
+                            mismatchCountRef.current = 0;
+                            setStep('match');
+                        }
+                    } else {
+                        mismatchCountRef.current = 0;
+                        runLivenessChallenge(detection);
+                    }
                 }
             }
         } catch (err) {
@@ -205,7 +256,7 @@ export default function FaceVerificationModal({
                 requestRef.current = requestAnimationFrame(detectFace);
             }
         }
-    }, [runLivenessChallenge, updateFeedback]);
+    }, [loadFaceApi, runLivenessChallenge, updateFeedback, verifyCurrentFaceOwner]);
 
     // FUNGSI 5: Start Kamera
     const startCameraAndDetection = useCallback(async () => {
@@ -236,7 +287,7 @@ export default function FaceVerificationModal({
                 isCameraActiveRef.current = true;
                 setCameraStarted(true);
                 setStep('match');
-                updateFeedback("Memindai wajah...");
+                mismatchCountRef.current = 0;
 
                 // Mulai loop deteksi
                 detectFace();
@@ -254,7 +305,7 @@ export default function FaceVerificationModal({
             setCameraStarted(false);
             toast.error(msg);
         }
-    }, [detectFace, updateFeedback]);
+    }, [detectFace]);
 
     // EFFECT 1: Load Models (Hanya dijalankan SEKALI saat mount/open)
     useEffect(() => {
@@ -275,6 +326,7 @@ export default function FaceVerificationModal({
 
         const loadModels = async () => {
             try {
+            const faceapi = await loadFaceApi();
                 // Cek apakah model sudah load sebelumnya (global check)
                 const isLoaded = !!faceapi.nets.tinyFaceDetector.params;
 
@@ -301,7 +353,7 @@ export default function FaceVerificationModal({
 
         // PENTING: Jangan masukkan cleanup stopCamera di sini!
         // Biarkan loadModels independen dari lifecycle kamera.
-    }, [isOpen, storedDescriptor, onClose, updateFeedback]);
+    }, [isOpen, storedDescriptor, onClose, updateFeedback, loadFaceApi]);
 
     // EFFECT 2: Cleanup Handle saat Close Modal
     useEffect(() => {
@@ -331,10 +383,10 @@ export default function FaceVerificationModal({
                     />
 
                     {/* Overlay UI */}
-                    <div className="absolute inset-0 flex flex-col justify-between p-5 md:p-8 z-10 pointer-events-none">
+                    <div className="absolute top-5 inset-0 flex flex-col justify-between p-5 md:p-8 z-10 pointer-events-none">
 
                         {/* Header */}
-                        <div className="flex top-10 items-center justify-between pointer-events-auto">
+                        <div className="flex items-center justify-between pointer-events-auto">
                             <div className="flex items-center gap-3 bg-black/40 backdrop-blur-lg px-4 py-2 rounded-full border border-cyan-500/20">
                                 <ScanFace className="h-5 w-5 text-cyan-400" />
                                 <span className="text-base font-semibold text-white/90">{userName}</span>
@@ -414,11 +466,16 @@ export default function FaceVerificationModal({
                                 <p className="text-xl md:text-2xl font-bold text-center text-white mb-3 tracking-wide">
                                     {feedback}
                                 </p>
-                                <div className="h-1.5 bg-white/10 rounded-full overflow-hidden mt-3">
-                                    <div
-                                        className="h-full bg-linear-to-r from-cyan-400 to-emerald-400 transition-all duration-700 ease-out"
-                                        style={{ width: `${(getStepNumber() / 4) * 100}%` }}
-                                    />
+                                <p className="text-sm text-white/70 text-center mb-2">
+                                    {getProgressLabel()}
+                                </p>
+                                <div className="mt-3 flex items-center justify-between gap-2">
+                                    {[1, 2, 3, 4].map((progressStep) => (
+                                        <div
+                                            key={progressStep}
+                                            className={`h-2 w-full rounded-full transition-colors duration-300 ${getStepNumber() >= progressStep ? 'bg-emerald-400/80' : 'bg-white/15'}`}
+                                        />
+                                    ))}
                                 </div>
                             </div>
                         )}

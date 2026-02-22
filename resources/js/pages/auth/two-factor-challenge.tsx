@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import { Form, Head } from '@inertiajs/react';
 import { REGEXP_ONLY_DIGITS } from 'input-otp';
 import { useMemo, useState } from 'react';
@@ -11,9 +12,10 @@ import {
 } from '@/components/ui/input-otp';
 import { OTP_MAX_LENGTH } from '@/hooks/use-two-factor-auth';
 import AuthLayout from '@/layouts/auth-layout';
-import { store } from '@/routes/two-factor/login';
+import { app as storeApp, store } from '@/routes/two-factor/login';
 
 export default function TwoFactorChallenge() {
+    const isNativeApp = Capacitor.isNativePlatform();
     const [showRecoveryInput, setShowRecoveryInput] = useState<boolean>(false);
     const [code, setCode] = useState<string>('');
 
@@ -54,7 +56,7 @@ export default function TwoFactorChallenge() {
 
             <div className="space-y-6">
                 <Form
-                    {...store.form()}
+                    {...(isNativeApp ? storeApp.form() : store.form())}
                     className="space-y-4"
                     resetOnError
                     resetOnSuccess={!showRecoveryInput}

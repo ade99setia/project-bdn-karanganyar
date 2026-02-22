@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import { router } from '@inertiajs/react';
 import { motion } from 'framer-motion';
 import {
@@ -12,6 +13,7 @@ import ImagePreviewModal from '@/components/modal/image-preview-modal';
 import VisitDetailModal from '@/components/modal/visit-detail-modal';
 import VisitHistorySection from '@/components/section/visit-history-section';
 import AppLayout from '@/layouts/app-layout';
+import AppLayoutMobile from '@/layouts/app-layout-mobile';
 import type { BreadcrumbItem } from '@/types';
 
 interface User {
@@ -190,12 +192,10 @@ export default function Monitoring({ recentVisits, products, selectedDate, serve
         router.visit(`${baseurl}?filterType=range&startDate=${rangeStart}&endDate=${rangeEnd}`, { preserveScroll: true });
     };
 
-
-
-
+    const Layout = Capacitor.isNativePlatform() ? AppLayoutMobile : AppLayout;
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <Layout breadcrumbs={breadcrumbs}>
             <div className="min-h-screen bg-blue-50/20 dark:bg-blue-950/10 pb-16 pt-8 px-5 sm:px-6 lg:px-8">
                 <div className="mx-auto max-w-7xl space-y-10">
                     
@@ -404,7 +404,7 @@ export default function Monitoring({ recentVisits, products, selectedDate, serve
                     />
                 )}
             </div>
-        </AppLayout>
+        </Layout>
 
     );
 

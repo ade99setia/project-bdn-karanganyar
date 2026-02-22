@@ -1,6 +1,6 @@
 import axios from 'axios';
 import imageCompression from 'browser-image-compression';
-import * as faceapi from 'face-api.js';
+import type * as FaceApi from 'face-api.js';
 import {
     Loader2,
     RefreshCw,
@@ -37,6 +37,8 @@ const dataURLtoFile = (dataurl: string, filename: string) => {
 
 export default function FaceEnrollmentModal({ isOpen, onClose, user }: FaceEnrollmentModalProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
+    const faceApiRef = useRef<typeof FaceApi | null>(null);
+    const faceApiPromiseRef = useRef<Promise<typeof FaceApi> | null>(null);
     const [isModelLoaded, setIsModelLoaded] = useState(false);
     const [isCameraReady, setIsCameraReady] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -47,12 +49,22 @@ export default function FaceEnrollmentModal({ isOpen, onClose, user }: FaceEnrol
     const [detectionStatus, setDetectionStatus] = useState<'idle' | 'detecting' | 'detected' | 'failed'>('idle');
     const [faceQuality, setFaceQuality] = useState<'good' | 'poor' | null>(null);
 
+    const loadFaceApi = async () => {
+        if (faceApiRef.current) return faceApiRef.current;
+        if (!faceApiPromiseRef.current) {
+            faceApiPromiseRef.current = import('face-api.js');
+        }
+        faceApiRef.current = await faceApiPromiseRef.current;
+        return faceApiRef.current;
+    };
+
     // 1. Load Model (Hanya detector & landmark yang ringan)
     useEffect(() => {
         let isMounted = true;
         const loadModels = async () => {
             if (!isOpen) return;
             try {
+                const faceapi = await loadFaceApi();
                 // Kita hanya butuh tinyFaceDetector & faceLandmark68Net untuk enrollment dasar
                 await Promise.all([
                     faceapi.nets.tinyFaceDetector.loadFromUri("/models"),
@@ -137,6 +149,7 @@ export default function FaceEnrollmentModal({ isOpen, onClose, user }: FaceEnrol
         setDetectionStatus('detecting');
 
         try {
+            const faceapi = await loadFaceApi();
             const video = videoRef.current;
 
             const options = new faceapi.TinyFaceDetectorOptions({
@@ -260,7 +273,7 @@ export default function FaceEnrollmentModal({ isOpen, onClose, user }: FaceEnrol
             <DialogContent className="w-screen! h-screen! max-w-none! max-h-none! rounded-none! border-0 p-0 m-0 bg-black flex flex-col overflow-hidden">
 
                 {/* --- HEADER --- */}
-                <div className="absolute top-10 left-0 right-0 z-20 p-4 flex justify-between items-start bg-linear-to-b from-black/80 to-transparent">
+                <div className="absolute top-5 left-0 right-0 z-20 p-4 flex justify-between items-start bg-linear-to-b">
                     <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2 text-indigo-400">
                             <ScanFace className="w-6 h-6" />

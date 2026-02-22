@@ -1,6 +1,7 @@
 import { usePage } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
+import MobileBottomNav from '@/components/mobile-bottom-nav';
 import MobileGate from '@/components/mobile-gate';
 import AlertModal from '@/components/modal/alert-modal';
 import ThemeToggle from "@/components/ui/toggle-theme";
@@ -61,9 +62,11 @@ export default function AppLayoutMobile({ children, breadcrumbs, ...props }: App
     return (
         <MobileGate>
             <AppLayoutTemplate breadcrumbs={breadcrumbs} {...props}>
-                {children}
+                <div className="pb-5">
+                    {children}
+                </div>
 
-                <div className="fixed bottom-4 right-4 z-50">
+                <div className="fixed bottom-30 right-4 z-50">
                     <ThemeToggle />
                 </div>
 
@@ -79,6 +82,8 @@ export default function AppLayoutMobile({ children, breadcrumbs, ...props }: App
                     primaryButtonText={alertConfig.type === 'error' ? 'Tutup' : 'OK Mengerti'}
                     disableBackdropClick={alertConfig.isFatal}
                 />
+
+                <MobileBottomNav />
             </AppLayoutTemplate>
         </MobileGate>
     );
