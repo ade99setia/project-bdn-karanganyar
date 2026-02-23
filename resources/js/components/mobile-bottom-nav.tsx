@@ -12,7 +12,8 @@ interface BottomNavItem {
 
 export default function MobileBottomNav() {
     const { props } = usePage();
-    const userId = (props.auth as unknown).user.id;
+    const userId = (props.auth as { user: { id: string | number } }).user.id;
+    const unreadCount = (props.unreadNotificationCount ?? 0) as number;
     const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
 
     const menuItems = useMemo<BottomNavItem[]>(() => [
@@ -29,15 +30,15 @@ export default function MobileBottomNav() {
             icon: (active) => <MonitorCheck size={24} strokeWidth={active ? 2.5 : 2} />,
         },
         {
-            label: 'Laporan',
+            label: 'Report',
             href: '/sales/dashboard#add-visit',
             activePaths: ['/sales/dashboard#add-visit'],
             icon: () => <SquareArrowRight size={28} strokeWidth={2.5} />,
         },
         {
-            label: 'Support',
-            href: '/',
-            activePaths: ['/'],
+            label: 'Notification',
+            href: '/sales/notifications',
+            activePaths: ['/sales/notifications'],
             icon: (active) => <Headset size={24} strokeWidth={active ? 2.5 : 2} />,
         },
         {
@@ -86,12 +87,19 @@ export default function MobileBottomNav() {
                                 )}
 
                                 <div className={`
-                                    flex items-center justify-center p-2 rounded-2xl transition-all duration-300
+                                    flex items-center justify-center p-2 rounded-2xl transition-all duration-300 relative
                                     ${isActive 
                                         ? 'bg-orange-50 text-orange-600 scale-110 dark:bg-orange-900/40 dark:text-orange-400' 
                                         : 'text-gray-400 dark:text-blue-400/60'}
                                 `}>
                                     {item.icon(isActive)}
+                                    
+                                    {/* Badge notifikasi belum dibaca */}
+                                    {item.label === 'Notification' && unreadCount > 0 && (
+                                        <div className="absolute -top-1 -right-1 flex items-center justify-center min-w-4.5 h-4.5 px-1 bg-orange-500 text-white text-[10px] font-bold rounded-full border-2 border-white dark:border-blue-950 shadow-lg animate-pulse">
+                                            {unreadCount > 99 ? '99+' : unreadCount}
+                                        </div>
+                                    )}
                                 </div>
                                 
                                 <span className={`

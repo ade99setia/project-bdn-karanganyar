@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "925521806948",
+    "project_id": "bdn-karanganyar",
+    "storage_bucket": "bdn-karanganyar.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:925521806948:android:697b6bd902da3915814171",
+        "android_client_info": {
+          "package_name": "com.example.appbagusdinamikanusantara"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCV5kn2W92Vaz2-Hh0VEUpNRg0eGgEZHQU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

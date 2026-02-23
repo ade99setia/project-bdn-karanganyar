@@ -107,4 +107,14 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(KioskToken::class);
     }
 
+    public function userNotifications()
+    {
+        return $this->hasMany(UserNotification::class);
+    }
+
+    public function userDeviceTokens()
+    {
+        return $this->hasMany(UserDeviceToken::class);
+    }
+
 }

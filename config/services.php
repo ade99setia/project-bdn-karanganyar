@@ -35,4 +35,18 @@ return [
         ],
     ],
 
+    'fcm' => [
+        'service_account_path' => env('FCM_SERVICE_ACCOUNT_PATH') 
+            ? (str_starts_with(env('FCM_SERVICE_ACCOUNT_PATH'), '/') || preg_match('/^[A-Z]:/i', env('FCM_SERVICE_ACCOUNT_PATH'))
+                ? env('FCM_SERVICE_ACCOUNT_PATH')
+                : base_path(env('FCM_SERVICE_ACCOUNT_PATH')))
+            : null,
+        'project_id' => env('FCM_PROJECT_ID'),
+        'client_email' => env('FCM_CLIENT_EMAIL'),
+        'private_key' => env('FCM_PRIVATE_KEY'),
+        'token_uri' => env('FCM_TOKEN_URI', 'https://oauth2.googleapis.com/token'),
+        'server_key' => env('FCM_SERVER_KEY'),
+        'send_url' => env('FCM_SEND_URL', 'https://fcm.googleapis.com/fcm/send'),
+    ],
+
 ];

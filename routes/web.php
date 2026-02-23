@@ -13,6 +13,7 @@ use App\Http\Controllers\SalesUtilsController;
 use App\Http\Controllers\Utils\NearbyCustomerController;
 use App\Http\Controllers\SupervisorController;
 use App\Http\Controllers\SalesController;
+use App\Http\Controllers\SalesNotificationController;
 use Laravel\Fortify\Http\Controllers\TwoFactorAuthenticatedSessionController;
 
 Route::get('/', function () {
@@ -40,11 +41,20 @@ Route::middleware(['auth', 'verified'])->prefix('supervisor')->group(function ()
 
 // Sales Routes Capacitor JS
 Route::middleware(['auth', 'verified'])->prefix('sales')->group(function () {
+    // Device token registration - accessible to all authenticated users
+    Route::post('notifications/device-token', [SalesNotificationController::class, 'storeDeviceToken']);
+
     Route::middleware(['roleUser:1,active'])->group(function () {
         Route::get('dashboard', [DashboardController::class, 'sales']);
 
         Route::get('monitoring-record/{user_id}', [SalesController::class, 'monitoringRecord'])
             ->where('user_id', '[0-9]+');
+
+        Route::get('notifications', [SalesNotificationController::class, 'index']);
+        Route::patch('notifications/read-all', [SalesNotificationController::class, 'markAllAsRead']);
+        Route::patch('notifications/{notification}/read', [SalesNotificationController::class, 'markAsRead'])
+            ->whereNumber('notification');
+        Route::post('notifications/test-push', [SalesNotificationController::class, 'sendTestPush']);
     });
 
     Route::post('attendance/check-in', [SalesAttendanceController::class, 'checkIn']);

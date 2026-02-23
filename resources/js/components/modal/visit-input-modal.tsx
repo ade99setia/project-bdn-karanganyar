@@ -319,8 +319,8 @@ export default function VisitInputModal({
                                                             </div>
                                                         )}
                                                         {cust.notes && (
-                                                            <div className="flex items-start gap-2 text-zinc-500 dark:text-zinc-500">
-                                                                <StickyNote size={13} className="text-zinc-400 shrink-0 mt-0.5" />
+                                                            <div className="flex items-start gap-2 text-zinc-500 dark:text-zinc-400">
+                                                                <StickyNote size={13} className="text-zinc-400 shrink-0" />
                                                                 <p className="line-clamp-2 leading-tight flex-1">{cust.notes}</p>
                                                             </div>
                                                         )}

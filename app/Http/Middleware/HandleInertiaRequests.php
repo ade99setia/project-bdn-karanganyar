@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use Illuminate\Support\Facades\Storage;
+use App\Models\UserNotification;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -38,6 +39,7 @@ class HandleInertiaRequests extends Middleware
     {
         $user = $request->user();
         $authUser = null;
+        $unreadCount = 0;
 
         if ($user) {
             $user->loadMissing('role:id,name');
@@ -47,6 +49,12 @@ class HandleInertiaRequests extends Middleware
             if ($user->avatar) {
                 $authUser['avatar'] = Storage::url('profiles/' . $user->avatar);
             }
+
+            // Hitung notifikasi yang belum dibaca
+            $unreadCount = UserNotification::query()
+                ->where('user_id', $user->id)
+                ->where('status', UserNotification::STATUS_UNREAD)
+                ->count();
         }
 
         return [
@@ -56,6 +64,7 @@ class HandleInertiaRequests extends Middleware
                 'user' => $authUser,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            'unreadNotificationCount' => $unreadCount,
             'flash' => [
                 'success' => fn() => $request->session()->get('success'),
                 'error' => fn() => $request->session()->get('error'),
