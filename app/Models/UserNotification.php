@@ -72,8 +72,8 @@ class UserNotification extends Model
             return $url;
         }
 
-        if (preg_match('#^/sales/notifications/\d+/read$#', $url)) {
-            return '/sales/notifications';
+        if (preg_match('#^/notifications/\d+/read$#', $url)) {
+            return '/notifications';
         }
 
         return $url;

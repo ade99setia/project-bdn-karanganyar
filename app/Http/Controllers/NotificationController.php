@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
-class SalesNotificationController extends Controller
+class NotificationController extends Controller
 {
     public function index(Request $request)
     {
@@ -44,7 +44,7 @@ class SalesNotificationController extends Controller
             ->where('status', UserNotification::STATUS_UNREAD)
             ->count();
 
-        return Inertia::render('sales/notifications', [
+        return Inertia::render('notifications', [
             'notifications' => $notifications,
             'unreadCount' => $unreadCount,
         ]);
@@ -65,13 +65,13 @@ class SalesNotificationController extends Controller
 
         if ($notification->user_id != $user->id) {
             return redirect()
-                ->to('/sales/notifications')
+                ->to('/notifications')
                 ->with('warning', 'Notifikasi tidak ditemukan atau tidak dapat diakses.');
         }
 
         $this->markNotificationAsRead($notification, $user->id);
 
-        $redirectUrl = '/sales/notifications';
+        $redirectUrl = '/notifications';
 
         if (is_string($notification->safe_action_url) && $notification->safe_action_url !== '') {
             $redirectUrl = $notification->safe_action_url;
@@ -268,7 +268,7 @@ class SalesNotificationController extends Controller
                         'status' => UserNotification::STATUS_UNREAD,
                         'channel' => UserNotification::CHANNEL_PUSH,
                         'priority' => $validated['priority'] ?? UserNotification::PRIORITY_HIGH,
-                        'action_url' => '/sales/notifications',
+                        'action_url' => '/notifications',
                         'sent_at' => now(),
                     ]);
 
@@ -295,7 +295,7 @@ class SalesNotificationController extends Controller
                 'status' => UserNotification::STATUS_UNREAD,
                 'channel' => UserNotification::CHANNEL_PUSH,
                 'priority' => $validated['priority'] ?? UserNotification::PRIORITY_HIGH,
-                'action_url' => '/sales/notifications',
+                'action_url' => '/notifications',
                 'sent_at' => now(),
             ]);
 

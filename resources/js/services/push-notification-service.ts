@@ -37,7 +37,7 @@ export class PushNotificationService {
         } = options;
 
         router.post(
-            '/sales/notifications/test-push',
+            '/notifications/test-push',
             {
                 title,
                 message,
@@ -71,7 +71,7 @@ export class PushNotificationService {
      */
     static markAsRead(notificationId: number) {
         router.patch(
-            `/sales/notifications/${notificationId}/read`,
+            `/notifications/${notificationId}/read`,
             {},
             {
                 preserveScroll: true,
@@ -85,7 +85,7 @@ export class PushNotificationService {
      */
     static markAsUnread(notificationId: number) {
         router.patch(
-            `/sales/notifications/${notificationId}/unread`,
+            `/notifications/${notificationId}/unread`,
             {},
             {
                 preserveScroll: true,
@@ -99,7 +99,7 @@ export class PushNotificationService {
      */
     static markAllAsRead() {
         router.patch(
-            '/sales/notifications/read-all',
+            '/notifications/read-all',
             {},
             {
                 preserveScroll: true,

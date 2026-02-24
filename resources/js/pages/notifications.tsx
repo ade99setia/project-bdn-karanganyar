@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { Bell, Send, CheckCheck, Clock3, BellRing } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import AlertModal from '@/components/modal/alert-modal';
@@ -42,7 +42,7 @@ interface Props {
 const breadcrumbs: BreadcrumbItem[] = [
     {
         title: 'Notifikasi',
-        href: '/sales/notifications',
+        href: '/notifications',
     },
 ];
 
@@ -61,7 +61,7 @@ const formatDateTime = (value: string | null) => {
 const isReadEndpointUrl = (url: string | null) => {
     if (!url) return false;
 
-    return /^\/sales\/notifications\/\d+\/read$/.test(url);
+    return /^\/notifications\/\d+\/read$/.test(url);
 };
 
 const priorityClassMap: Record<NotificationItem['priority'], string> = {
@@ -79,8 +79,6 @@ type AlertConfigType = {
 
 export default function SalesNotifications({ notifications, unreadCount }: Props) {
     const Layout = Capacitor.isNativePlatform() ? AppLayoutMobile : AppLayout;
-    // const page = usePage<{ auth?: { user?: { role?: string } } }>();
-    // const isAdmin = page.props.auth?.user?.role === 'admin';
 
     const [alertConfig, setAlertConfig] = useState<AlertConfigType>({
         isOpen: false,

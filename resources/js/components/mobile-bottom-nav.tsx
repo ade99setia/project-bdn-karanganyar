@@ -37,8 +37,8 @@ export default function MobileBottomNav() {
         },
         {
             label: 'Notification',
-            href: '/sales/notifications',
-            activePaths: ['/sales/notifications'],
+            href: '/notifications',
+            activePaths: ['/notifications'],
             icon: (active) => <Headset size={24} strokeWidth={active ? 2.5 : 2} />,
         },
         {

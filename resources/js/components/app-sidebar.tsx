@@ -45,7 +45,7 @@ export function AppSidebar() {
         ]),
         {
             title: 'Notifikasi',
-            href: `/${auth.user.role}/notifications`,
+            href: `/notifications`,
             icon: MonitorCheck,
         },
     ];
@@ -59,7 +59,7 @@ export function AppSidebar() {
         },
         {
             title: 'Sync Center',
-            href: `/${auth.user.role}/sync-center`,
+            href: `/sync-center`,
             icon: RefreshCcwDot,
         },
     ];

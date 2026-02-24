@@ -287,7 +287,7 @@ export function usePushNotifications(options: UsePushNotificationsOptions = {}) 
         try {
             const storedToken = localStorage.getItem(PUSH_TOKEN_STORAGE_KEY);
 
-            const response = await requestJson('/sales/notifications/device-token/deactivate', {
+            const response = await requestJson('/notifications/device-token/deactivate', {
                 method: 'POST',
                 body: JSON.stringify({
                     token: storedToken,
@@ -323,7 +323,7 @@ export function usePushNotifications(options: UsePushNotificationsOptions = {}) 
 
         try {
             const platform = Capacitor.getPlatform();
-            const response = await requestJson(`/sales/notifications/device-token/status?platform=${platform}`, {
+            const response = await requestJson(`/notifications/device-token/status?platform=${platform}`, {
                 method: 'GET',
             });
 
@@ -349,7 +349,7 @@ async function registerDeviceToken(token: string): Promise<{
     message: string;
     token?: string;
 }> {
-    const data = await requestJson('/sales/notifications/device-token', {
+    const data = await requestJson('/notifications/device-token', {
         method: 'POST',
         body: JSON.stringify({
             token: token,

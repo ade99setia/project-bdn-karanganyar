@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
 use App\Http\Controllers\AuthFlowController;
@@ -13,7 +14,7 @@ use App\Http\Controllers\SalesUtilsController;
 use App\Http\Controllers\Utils\NearbyCustomerController;
 use App\Http\Controllers\SupervisorController;
 use App\Http\Controllers\SalesController;
-use App\Http\Controllers\SalesNotificationController;
+use App\Http\Controllers\NotificationController;
 use Laravel\Fortify\Http\Controllers\TwoFactorAuthenticatedSessionController;
 
 Route::get('/', function () {
@@ -21,12 +22,6 @@ Route::get('/', function () {
         'canRegister' => Features::enabled(Features::registration()),
     ]);
 })->name('home');
-
-// Default route after login, will redirect to role-based dashboard
-Route::get('dashboard', function () {
-    // return Inertia::render('dashboard');
-    return redirect()->route('profile.edit');
-})->middleware(['auth', 'verified'])->name('dashboard');
 
 // Supervisor Routes with Inertia JS
 Route::middleware(['auth', 'verified'])->prefix('supervisor')->group(function () {
@@ -58,46 +53,47 @@ Route::middleware(['auth', 'verified'])->prefix('sales')->group(function () {
     Route::post('visits', [SalesVisitController::class, 'store']);
     Route::patch('customers/{id}/update-contact', [SalesVisitController::class, 'updateContact']);
     Route::post('utils/nearby-customers', NearbyCustomerController::class);
+});
+
+// =======================================================================================================================================
+
+Route::middleware(['auth', 'verified'])->group(function () {
+
+    // Default route after login, will redirect to role-based dashboard
+    Route::get('dashboard', function () {
+        return redirect()->route('profile.edit');
+    })->name('dashboard');
 
     // Notifications
-    Route::get('notifications', [SalesNotificationController::class, 'index']);
-    Route::post('notifications/device-token', [SalesNotificationController::class, 'storeDeviceToken']);
-    Route::get('notifications/device-token/status', [SalesNotificationController::class, 'deviceTokenStatus']);
-    Route::post('notifications/device-token/deactivate', [SalesNotificationController::class, 'deactivateDeviceToken']);
-    Route::patch('notifications/read-all', [SalesNotificationController::class, 'markAllAsRead']);
-    Route::get('notifications/{notification}/read', [SalesNotificationController::class, 'markAsReadFromLink'])
+    Route::get('notifications', [NotificationController::class, 'index']);
+    Route::post('notifications/device-token', [NotificationController::class, 'storeDeviceToken']);
+    Route::get('notifications/device-token/status', [NotificationController::class, 'deviceTokenStatus']);
+    Route::post('notifications/device-token/deactivate', [NotificationController::class, 'deactivateDeviceToken']);
+    Route::patch('notifications/read-all', [NotificationController::class, 'markAllAsRead']);
+    Route::get('notifications/{notification}/read', [NotificationController::class, 'markAsReadFromLink'])
         ->whereNumber('notification');
-    Route::patch('notifications/{notification}/read', [SalesNotificationController::class, 'markAsRead'])
+    Route::patch('notifications/{notification}/read', [NotificationController::class, 'markAsRead'])
         ->whereNumber('notification');
-    Route::patch('notifications/{notification}/unread', [SalesNotificationController::class, 'markAsUnread'])
+    Route::patch('notifications/{notification}/unread', [NotificationController::class, 'markAsUnread'])
         ->whereNumber('notification');
 
     // Testing route for sending push notifications (can be removed in production)    
-    Route::post('notifications/test-push', [SalesNotificationController::class, 'sendTestPush']);
+    Route::post('notifications/test-push', [NotificationController::class, 'sendTestPush']);
+
+    // Sync Center atau Semi-Offline Page
+    Route::get('sync-center', fn() => Inertia::render('sync-center', [
+        'role' => Auth::user()->role
+    ]));
+
+    // Kiosk Login Routes
+    Route::get('/kiosk/{token}', [AuthFlowController::class, 'kioskLogin'])->name('kiosk.login');
+
+    Route::middleware(['auth'])->post('/kiosk/generate-link', [AuthFlowController::class, 'generateKioskLink'])
+        ->name('kiosk.generate-link');
+
+    // Android App Link Route
+    Route::get('/.well-known/assetlinks.json', [AuthFlowController::class, 'assetLinks']);
 });
-
-// =============================  =============================
-
-// Shared routes
-Route::middleware(['auth', 'verified'])
-    ->prefix('{role}')
-    ->whereIn('role', ['supervisor', 'sales'])
-    ->group(function () {
-        Route::get('sync-center', function ($role) {
-            return Inertia::render('sync-center', [
-                'role' => $role
-            ]);
-        });
-    });
-    
-// Kiosk Login Routes
-Route::get('/kiosk/{token}', [AuthFlowController::class, 'kioskLogin'])->name('kiosk.login');
-
-Route::middleware(['auth'])->post('/kiosk/generate-link', [AuthFlowController::class, 'generateKioskLink'])
-    ->name('kiosk.generate-link');
-
-// Android App Link Route
-Route::get('/.well-known/assetlinks.json', [AuthFlowController::class, 'assetLinks']);
 
 // Authenticated routes for email verification and kiosk login
 Route::middleware(['auth'])->group(function () {
@@ -108,12 +104,13 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/email/verification-status', [AuthFlowController::class, 'verificationStatus'])
         ->name('verification.status');
+
+    Route::post('/two-factor-challenge/app', [TwoFactorAuthenticatedSessionController::class, 'store'])
+        ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class])
+        ->middleware(['guest', 'throttle:two-factor'])
+        ->name('two-factor.login.app');
 });
 
-Route::post('/two-factor-challenge/app', [TwoFactorAuthenticatedSessionController::class, 'store'])
-    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class])
-    ->middleware(['guest', 'throttle:two-factor'])
-    ->name('two-factor.login.app');
 
 
 // Routes for Mataram subdomain
