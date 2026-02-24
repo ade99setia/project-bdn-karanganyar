@@ -37,7 +37,7 @@ class FcmPushService
                 data: [
                     'notification_id' => (string) $notification->id,
                     'type' => (string) $notification->type,
-                    'action_url' => (string) ($notification->action_url ?? '/sales/notifications'),
+                    'action_url' => (string) ($notification->safe_action_url ?? '/sales/notifications'),
                     'priority' => (string) $notification->priority,
                     'channel' => (string) $notification->channel,
                 ],

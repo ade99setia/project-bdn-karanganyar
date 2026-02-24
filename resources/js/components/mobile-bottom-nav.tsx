@@ -11,9 +11,9 @@ interface BottomNavItem {
 }
 
 export default function MobileBottomNav() {
-    const { props } = usePage();
-    const userId = (props.auth as { user: { id: string | number } }).user.id;
-    const unreadCount = (props.unreadNotificationCount ?? 0) as number;
+    const { props } = usePage<{ auth?: { user?: { id?: string | number } }; unreadNotificationCount?: number }>();
+    const userId = props.auth?.user?.id;
+    const unreadCount = Number(props.unreadNotificationCount ?? 0);
     const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
 
     const menuItems = useMemo<BottomNavItem[]>(() => [
@@ -25,8 +25,8 @@ export default function MobileBottomNav() {
         },
         {
             label: 'Performa',
-            href: `/sales/monitoring-record/${userId}`,
-            activePaths: [`/sales/monitoring-record/${userId}`],
+            href: userId ? `/sales/monitoring-record/${userId}` : '/sales/dashboard',
+            activePaths: userId ? [`/sales/monitoring-record/${userId}`] : ['/sales/dashboard'],
             icon: (active) => <MonitorCheck size={24} strokeWidth={active ? 2.5 : 2} />,
         },
         {

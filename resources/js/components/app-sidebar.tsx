@@ -43,6 +43,11 @@ export function AppSidebar() {
                 icon: MonitorCheck,
             },
         ]),
+        {
+            title: 'Notifikasi',
+            href: `/${auth.user.role}/notifications`,
+            icon: MonitorCheck,
+        },
     ];
 
 

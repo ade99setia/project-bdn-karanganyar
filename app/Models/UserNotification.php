@@ -55,4 +55,27 @@ class UserNotification extends Model
                 ->orWhere('expires_at', '>', now());
         });
     }
+
+    public function setActionUrlAttribute($value): void
+    {
+        $this->attributes['action_url'] = self::normalizeActionUrl($value);
+    }
+
+    public function getSafeActionUrlAttribute(): ?string
+    {
+        return self::normalizeActionUrl($this->action_url);
+    }
+
+    private static function normalizeActionUrl($url): ?string
+    {
+        if (!is_string($url) || $url === '') {
+            return $url;
+        }
+
+        if (preg_match('#^/sales/notifications/\d+/read$#', $url)) {
+            return '/sales/notifications';
+        }
+
+        return $url;
+    }
 }

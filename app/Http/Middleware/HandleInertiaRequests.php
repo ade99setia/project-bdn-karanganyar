@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Inertia\Middleware;
 use Illuminate\Support\Facades\Storage;
 use App\Models\UserNotification;
+use Illuminate\Support\Facades\Schema;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -50,11 +51,13 @@ class HandleInertiaRequests extends Middleware
                 $authUser['avatar'] = Storage::url('profiles/' . $user->avatar);
             }
 
-            // Hitung notifikasi yang belum dibaca
-            $unreadCount = UserNotification::query()
-                ->where('user_id', $user->id)
-                ->where('status', UserNotification::STATUS_UNREAD)
-                ->count();
+            // Hitung notifikasi yang belum dibaca (aman jika tabel belum tersedia)
+            if (Schema::hasTable('user_notifications')) {
+                $unreadCount = UserNotification::query()
+                    ->where('user_id', $user->id)
+                    ->where('status', UserNotification::STATUS_UNREAD)
+                    ->count();
+            }
         }
 
         return [

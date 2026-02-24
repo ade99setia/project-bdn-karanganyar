@@ -23,7 +23,6 @@ import FaceVerificationModal from '@/components/modal/face-verification-modal';
 import ImagePreviewModal from '@/components/modal/image-preview-modal';
 import VisitDetailModal from '@/components/modal/visit-detail-modal';
 import VisitInputModalContainer from '@/components/modal/visit-input-modal-container';
-import AppLayout from '@/layouts/app-layout';
 import AppLayoutMobile from '@/layouts/app-layout-mobile';
 import type { BreadcrumbItem } from '@/types';
 
@@ -365,10 +364,8 @@ export default function SalesRecord({ attendanceToday, recentVisits, user, serve
         { title: 'Visit Record', href: `/${user.name.toLowerCase()}/visit-record` }
     ];
 
-    const Layout = Capacitor.isNativePlatform() ? AppLayoutMobile : AppLayout;
-
     return (
-        <Layout breadcrumbs={breadcrumbs}>
+        <AppLayoutMobile breadcrumbs={breadcrumbs}>
             <Head title="Dashboard" />
             <div className="min-h-screen bg-blue-50/20 dark:bg-blue-950/10 pb-16 pt-8">
                 <div className="mx-auto max-w-7xl space-y-10">
@@ -647,7 +644,7 @@ export default function SalesRecord({ attendanceToday, recentVisits, user, serve
                 )
             }
 
-            {isPreviewOpen && selectedVisit && selectedVisit?.photos && selectedVisit.photos.length > 0 && (
+            {isPreviewOpen && Boolean(previewUrl) && (
                 <ImagePreviewModal
                     isOpen={isPreviewOpen}
                     onClose={() => {
@@ -669,6 +666,6 @@ export default function SalesRecord({ attendanceToday, recentVisits, user, serve
                 disableBackdropClick={alertConfig.isFatal}
             />
 
-        </Layout>
+        </AppLayoutMobile>
     );
 }

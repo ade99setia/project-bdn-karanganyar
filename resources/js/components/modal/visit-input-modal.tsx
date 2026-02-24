@@ -486,7 +486,7 @@ export default function VisitInputModal({
                             <div className="space-y-2.5">
                                 <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Foto Bukti Kunjungan</label>
                                 <label className="block relative cursor-pointer group">
-                                    <input type="file" accept="image/*" capture="environment" onChange={onPhotoChange} className="absolute inset-0 opacity-0 cursor-pointer z-10" />
+                                    <input type="file" accept="image/*" capture="environment" onChange={onPhotoChange} disabled={isCompressing} className="absolute inset-0 opacity-0 cursor-pointer z-10 disabled:cursor-not-allowed" />
                                     <div className={`border-2 border-dashed rounded-2xl h-52 flex items-center justify-center transition-all overflow-hidden ${photo ? 'border-blue-400 bg-blue-50/20' : 'border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-900/50'}`}>
                                         {photo ? (
                                             <div className="relative w-full h-full">
@@ -499,6 +499,13 @@ export default function VisitInputModal({
                                             <div className="text-center">
                                                 <Camera size={32} className="mx-auto mb-2 text-zinc-400" />
                                                 <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Ambil Foto</p>
+                                            </div>
+                                        )}
+
+                                        {isCompressing && (
+                                            <div className="absolute inset-0 z-20 bg-zinc-950/60 backdrop-blur-[1px] flex flex-col items-center justify-center gap-2 text-white">
+                                                <Loader2 size={26} className="animate-spin" />
+                                                <p className="text-xs font-bold uppercase tracking-widest">Sedang convert foto...</p>
                                             </div>
                                         )}
                                     </div>
@@ -595,12 +602,17 @@ export default function VisitInputModal({
                                                             >
                                                                 <div className="w-12 h-12 rounded-lg bg-zinc-100 dark:bg-zinc-800 overflow-hidden shrink-0 border border-zinc-200 dark:border-zinc-700">
                                                                     {p.file_path ? (
-                                                                        <button
-                                                                            onClick={() => onPreviewImage(`/storage/${p.file_path}`)}
+                                                                        <div
+                                                                            role="button"
+                                                                            tabIndex={0}
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                onPreviewImage(`/storage/${p.file_path}`);
+                                                                            }}
                                                                             className="w-full h-full block cursor-pointer group"
                                                                         >
                                                                             <img src={`/storage/${p.file_path}`} alt={p.name} className="w-full h-full object-cover group-hover:brightness-110 transition-all" />
-                                                                        </button>
+                                                                        </div>
                                                                     ) : (
                                                                         <div className="w-full h-full flex items-center justify-center"><ImageIcon size={20} className="text-zinc-400" /></div>
                                                                     )}
@@ -756,7 +768,8 @@ export default function VisitInputModal({
                             disabled={processing || isCompressing || !photo}
                             className="w-full py-4 bg-linear-to-r from-blue-600 to-blue-700 text-white font-bold rounded-2xl shadow-xl shadow-blue-500/30 flex items-center justify-center gap-2 active:scale-95 transition-transform"
                         >
-                            {processing ? <Loader2 className="animate-spin" /> : 'KIRIM LAPORAN SEKARANG'}
+                            {processing || isCompressing ? <Loader2 className="animate-spin" /> : 'KIRIM LAPORAN SEKARANG'}
+                            {isCompressing && !processing ? 'MENUNGGU CONVERT FOTO...' : null}
                             <ArrowRight size={20} />
                         </button>
                     </div>

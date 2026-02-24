@@ -4,6 +4,7 @@ interface SendTestPushOptions {
     title?: string;
     message?: string;
     priority?: 'low' | 'normal' | 'high';
+    scope?: 'self' | 'all_users';
     onSuccess?: (message: string) => void;
     onError?: (message: string) => void;
 }
@@ -30,6 +31,7 @@ export class PushNotificationService {
             title = 'Tes Push Notifikasi',
             message = 'Notifikasi push test berhasil dikirim ke perangkat Anda.',
             priority = 'high',
+            scope = 'self',
             onSuccess,
             onError,
         } = options;
@@ -40,6 +42,7 @@ export class PushNotificationService {
                 title,
                 message,
                 priority,
+                scope,
             },
             {
                 preserveScroll: true,
@@ -69,6 +72,20 @@ export class PushNotificationService {
     static markAsRead(notificationId: number) {
         router.patch(
             `/sales/notifications/${notificationId}/read`,
+            {},
+            {
+                preserveScroll: true,
+                preserveState: true,
+            }
+        );
+    }
+
+    /**
+     * Kembalikan notifikasi ke status belum dibaca
+     */
+    static markAsUnread(notificationId: number) {
+        router.patch(
+            `/sales/notifications/${notificationId}/unread`,
             {},
             {
                 preserveScroll: true,

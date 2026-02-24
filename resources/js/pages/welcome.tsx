@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core';
 import { Head, Link, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import AlertModal from '@/components/modal/alert-modal';
-import { dashboard, login, register } from '@/routes';
+import { login, register } from '@/routes';
 import type { SharedData } from '@/types';
 
 export default function Welcome({

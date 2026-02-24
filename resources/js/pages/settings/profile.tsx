@@ -178,12 +178,15 @@ export default function Profile({
                             </div>
                         </div>
 
-                        <Button
-                            variant="outline"
-                            onClick={() => setIsFaceModalOpen(true)}
-                        >
-                            {faceDescriptor.has_face ? 'Update Wajah' : 'Daftar Wajah'}
-                        </Button>
+                        <div className="flex flex-col gap-3 mt-4">
+                            <Button
+                                variant="outline"
+                                onClick={() => setIsFaceModalOpen(true)}
+                                className="w-full"
+                            >
+                                {faceDescriptor.has_face ? 'Update Wajah' : 'Daftar Wajah'}
+                            </Button>
+                        </div>
                     </div>
                 </div>
 
@@ -198,6 +201,7 @@ export default function Profile({
                 <AvatarUploadModal
                     isOpen={isAvatarModalOpen}
                     onClose={() => setIsAvatarModalOpen(false)}
+                    previousAvatarUrl={auth.user.avatar ?? null}
                     onUploadSuccess={() => {
                         router.reload({ only: ['auth'] });
                     }}

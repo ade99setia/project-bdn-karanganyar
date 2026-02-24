@@ -22,6 +22,12 @@ Route::get('/', function () {
     ]);
 })->name('home');
 
+// Default route after login, will redirect to role-based dashboard
+Route::get('dashboard', function () {
+    // return Inertia::render('dashboard');
+    return redirect()->route('profile.edit');
+})->middleware(['auth', 'verified'])->name('dashboard');
+
 // Supervisor Routes with Inertia JS
 Route::middleware(['auth', 'verified'])->prefix('supervisor')->group(function () {
     Route::get('dashboard', function () {
@@ -31,32 +37,19 @@ Route::middleware(['auth', 'verified'])->prefix('supervisor')->group(function ()
     Route::get('monitoring-team', [SupervisorController::class, 'monitoringTeam']);
     Route::get('monitoring-record/{user_id}', [SupervisorController::class, 'monitoringRecord'])
         ->where('user_id', '[0-9]+');
-
-    Route::get('sync-center', function () {
-        return Inertia::render('sync-center', [
-            'role' => 'supervisor',
-        ]);
-    });
 });
 
 // Sales Routes Capacitor JS
 Route::middleware(['auth', 'verified'])->prefix('sales')->group(function () {
-    // Device token registration - accessible to all authenticated users
-    Route::post('notifications/device-token', [SalesNotificationController::class, 'storeDeviceToken']);
 
     Route::middleware(['roleUser:1,active'])->group(function () {
         Route::get('dashboard', [DashboardController::class, 'sales']);
 
         Route::get('monitoring-record/{user_id}', [SalesController::class, 'monitoringRecord'])
             ->where('user_id', '[0-9]+');
-
-        Route::get('notifications', [SalesNotificationController::class, 'index']);
-        Route::patch('notifications/read-all', [SalesNotificationController::class, 'markAllAsRead']);
-        Route::patch('notifications/{notification}/read', [SalesNotificationController::class, 'markAsRead'])
-            ->whereNumber('notification');
-        Route::post('notifications/test-push', [SalesNotificationController::class, 'sendTestPush']);
     });
 
+    // Attendance, Visits, Utils for visit-record.tsx
     Route::post('attendance/check-in', [SalesAttendanceController::class, 'checkIn']);
     Route::post('attendance/check-out', [SalesAttendanceController::class, 'checkOut']);
 
@@ -66,13 +59,42 @@ Route::middleware(['auth', 'verified'])->prefix('sales')->group(function () {
     Route::patch('customers/{id}/update-contact', [SalesVisitController::class, 'updateContact']);
     Route::post('utils/nearby-customers', NearbyCustomerController::class);
 
-    Route::get('sync-center', function () {
-        return Inertia::render('sync-center', [
-            'role' => 'sales',
-        ]);
-    });
+    // Notifications
+    Route::get('notifications', [SalesNotificationController::class, 'index']);
+    Route::post('notifications/device-token', [SalesNotificationController::class, 'storeDeviceToken']);
+    Route::get('notifications/device-token/status', [SalesNotificationController::class, 'deviceTokenStatus']);
+    Route::post('notifications/device-token/deactivate', [SalesNotificationController::class, 'deactivateDeviceToken']);
+    Route::patch('notifications/read-all', [SalesNotificationController::class, 'markAllAsRead']);
+    Route::get('notifications/{notification}/read', [SalesNotificationController::class, 'markAsReadFromLink'])
+        ->whereNumber('notification');
+    Route::patch('notifications/{notification}/read', [SalesNotificationController::class, 'markAsRead'])
+        ->whereNumber('notification');
+    Route::patch('notifications/{notification}/unread', [SalesNotificationController::class, 'markAsUnread'])
+        ->whereNumber('notification');
+
+    // Testing route for sending push notifications (can be removed in production)    
+    Route::post('notifications/test-push', [SalesNotificationController::class, 'sendTestPush']);
 });
 
+// =============================  =============================
+
+// Shared routes
+Route::middleware(['auth', 'verified'])
+    ->prefix('{role}')
+    ->whereIn('role', ['supervisor', 'sales'])
+    ->group(function () {
+        Route::get('sync-center', function ($role) {
+            return Inertia::render('sync-center', [
+                'role' => $role
+            ]);
+        });
+    });
+    
+// Kiosk Login Routes
+Route::get('/kiosk/{token}', [AuthFlowController::class, 'kioskLogin'])->name('kiosk.login');
+
+Route::middleware(['auth'])->post('/kiosk/generate-link', [AuthFlowController::class, 'generateKioskLink'])
+    ->name('kiosk.generate-link');
 
 // Android App Link Route
 Route::get('/.well-known/assetlinks.json', [AuthFlowController::class, 'assetLinks']);
@@ -92,17 +114,6 @@ Route::post('/two-factor-challenge/app', [TwoFactorAuthenticatedSessionControlle
     ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class])
     ->middleware(['guest', 'throttle:two-factor'])
     ->name('two-factor.login.app');
-
-Route::get('/kiosk/{token}', [AuthFlowController::class, 'kioskLogin'])->name('kiosk.login');
-
-Route::middleware(['auth'])->post('/kiosk/generate-link', [AuthFlowController::class, 'generateKioskLink'])
-    ->name('kiosk.generate-link');
-
-// Default route after login, will redirect to role-based dashboard
-Route::get('dashboard', function () {
-    // return Inertia::render('dashboard');
-    return redirect()->route('profile.edit');
-})->middleware(['auth', 'verified'])->name('dashboard');
 
 
 // Routes for Mataram subdomain

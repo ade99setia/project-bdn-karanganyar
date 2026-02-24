@@ -16,12 +16,14 @@ interface AvatarUploadModalProps {
     isOpen: boolean;
     onClose: () => void;
     onUploadSuccess: (photoUrl: string) => void;
+    previousAvatarUrl?: string | null;
 }
 
 export default function AvatarUploadModal({
     isOpen,
     onClose,
     onUploadSuccess,
+    previousAvatarUrl = null,
 }: AvatarUploadModalProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [imageSrc, setImageSrc] = useState<string | null>(null);
@@ -146,31 +148,49 @@ export default function AvatarUploadModal({
                 <DialogHeader>
                     <DialogTitle>Upload Foto Profil</DialogTitle>
                     <DialogDescription>
-                        Pilih foto dan atur posisinya. Foto akan dipotong menjadi persegi
-                        (ratio 1:1).
+                        Silahkan pilih foto profil yang ingin diupload.
                     </DialogDescription>
                 </DialogHeader>
 
                 {!imageSrc ? (
-                    <div className="flex flex-col gap-4">
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/*"
-                            onChange={handleFileSelect}
-                            className="hidden"
-                        />
-                        <Button
-                            variant="outline"
-                            onClick={() => fileInputRef.current?.click()}
-                            className="w-full"
-                        >
-                            Pilih Foto
-                        </Button>
-                        <p className="text-sm text-neutral-500 text-center">
-                            Format: JPG, PNG, WebP (Max 2MB)
-                        </p>
-                    </div>
+                    <>
+                        <div className="flex items-center justify-center p-3 rounded-lg bg-neutral-50 border border-neutral-200">
+                            <div className="flex flex-col items-center gap-2">
+                                <div className="w-full h-full rounded-full overflow-hidden border border-neutral-300 bg-white flex items-center justify-center">
+                                    {previousAvatarUrl ? (
+                                        <img
+                                            src={previousAvatarUrl}
+                                            alt="Avatar saat ini"
+                                            className="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        <span className="text-[10px] text-neutral-400">Belum ada</span>
+                                    )}
+                                </div>
+                                <p className="text-xs text-neutral-600 text-center">Avatar Saat Ini</p>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col gap-4">
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handleFileSelect}
+                                className="hidden"
+                            />
+                            <Button
+                                variant="outline"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="w-full bg-blue-50/50 border-blue-300 hover:bg-blue-50/70"
+                            >
+                                Pilih Foto
+                            </Button>
+                            <p className="text-sm text-neutral-500 text-center">
+                                Format: JPG, PNG, WebP (Max 2MB)
+                            </p>
+                        </div>
+                    </>
                 ) : (
                     <div className="flex flex-col gap-4">
                         <div
@@ -187,7 +207,7 @@ export default function AvatarUploadModal({
                                 onCropChange={setCrop}
                                 onCropComplete={onCropComplete}
                                 onZoomChange={setZoom}
-                                onMediaLoaded={() => {}}
+                                onMediaLoaded={() => { }}
                             />
                         </div>
 
@@ -211,7 +231,7 @@ export default function AvatarUploadModal({
                                 disabled={isLoading}
                                 className="flex-1"
                             >
-                                Ubah Foto
+                                Batal
                             </Button>
                             <Button
                                 onClick={handleUpload}

@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { Bell, Send, CheckCheck, Clock3, BellRing } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import AlertModal from '@/components/modal/alert-modal';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import AppLayout from '@/layouts/app-layout';
@@ -58,6 +58,12 @@ const formatDateTime = (value: string | null) => {
     }).format(new Date(value));
 };
 
+const isReadEndpointUrl = (url: string | null) => {
+    if (!url) return false;
+
+    return /^\/sales\/notifications\/\d+\/read$/.test(url);
+};
+
 const priorityClassMap: Record<NotificationItem['priority'], string> = {
     low: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
     normal: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
@@ -73,6 +79,8 @@ type AlertConfigType = {
 
 export default function SalesNotifications({ notifications, unreadCount }: Props) {
     const Layout = Capacitor.isNativePlatform() ? AppLayoutMobile : AppLayout;
+    // const page = usePage<{ auth?: { user?: { role?: string } } }>();
+    // const isAdmin = page.props.auth?.user?.role === 'admin';
 
     const [alertConfig, setAlertConfig] = useState<AlertConfigType>({
         isOpen: false,
@@ -90,17 +98,62 @@ export default function SalesNotifications({ notifications, unreadCount }: Props
         });
     };
 
-    // Setup push notification dengan custom hook
-    const { enablePush } = usePushNotifications({
-        onReceived: (title, body) => {
-            showAlert(title, body, 'info');
-        },
-        autoRefreshOnReceive: true,
+    // Toggle push dari halaman ini, listener global dipasang di AppLayoutMobile
+    const { enablePush, disablePush, checkPushStatus } = usePushNotifications({
+        setupListeners: false,
     });
 
-    const handleEnablePushNotifications = async () => {
+    const [isPushEnabled, setIsPushEnabled] = useState(false);
+    const [isCheckingPushStatus, setIsCheckingPushStatus] = useState(Capacitor.isNativePlatform());
+    const [isTogglingPush, setIsTogglingPush] = useState(false);
+
+    useEffect(() => {
+        if (!Capacitor.isNativePlatform()) {
+            return;
+        }
+
+        let isMounted = true;
+
+        const loadPushStatus = async () => {
+            const enabled = await checkPushStatus();
+            if (isMounted) {
+                setIsPushEnabled(enabled);
+                setIsCheckingPushStatus(false);
+            }
+        };
+
+        loadPushStatus();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [checkPushStatus]);
+
+    const handleTogglePushNotifications = async () => {
         if (!Capacitor.isNativePlatform()) {
             showAlert('Perhatian', 'Push notification hanya tersedia di aplikasi mobile native.', 'warning');
+            return;
+        }
+
+        if (isTogglingPush) {
+            return;
+        }
+
+        setIsTogglingPush(true);
+
+        if (isPushEnabled) {
+            showAlert('Proses', 'Sedang menonaktifkan push notification... Tunggu sebentar.', 'info');
+
+            const result = await disablePush();
+
+            if (result.success) {
+                setIsPushEnabled(false);
+                showAlert('Berhasil', result.message, 'success');
+            } else {
+                showAlert('Gagal', result.message, 'error');
+            }
+
+            setIsTogglingPush(false);
             return;
         }
 
@@ -109,22 +162,30 @@ export default function SalesNotifications({ notifications, unreadCount }: Props
         const result = await enablePush();
 
         if (result.success) {
+            setIsPushEnabled(true);
             showAlert('Berhasil', result.message, 'success');
         } else {
             showAlert('Gagal', result.message, 'error');
         }
+
+        setIsTogglingPush(false);
     };
 
     const handleMarkAsRead = (id: number) => {
         PushNotificationService.markAsRead(id);
     };
 
+    const handleMarkAsUnread = (id: number) => {
+        PushNotificationService.markAsUnread(id);
+    };
+
     const handleMarkAllAsRead = () => {
         PushNotificationService.markAllAsRead();
     };
 
-    const handleSendTestPush = () => {
+    const handleSendTestPush = (scope: 'self' | 'all_users' = 'self') => {
         PushNotificationService.sendTest({
+            scope,
             onSuccess: (message) => showAlert('Berhasil', message, 'success'),
             onError: (message) => showAlert('Gagal', message, 'error'),
         });
@@ -154,22 +215,41 @@ export default function SalesNotifications({ notifications, unreadCount }: Props
                                 {Capacitor.isNativePlatform() && (
                                     <button
                                         type="button"
-                                        onClick={handleEnablePushNotifications}
-                                        className="inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-700"
+                                        onClick={handleTogglePushNotifications}
+                                        disabled={isCheckingPushStatus || isTogglingPush}
+                                        className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-70 ${isPushEnabled
+                                            ? 'bg-slate-700 hover:bg-slate-800'
+                                            : 'bg-purple-600 hover:bg-purple-700'
+                                            }`}
                                     >
                                         <BellRing size={16} />
-                                        Aktifkan Push
+                                        {isCheckingPushStatus
+                                            ? 'Memuat Status...'
+                                            : isTogglingPush
+                                                ? (isPushEnabled ? 'Menonaktifkan...' : 'Mengaktifkan...')
+                                                : (isPushEnabled ? 'Nonaktifkan Push' : 'Aktifkan Push')}
                                     </button>
                                 )}
 
                                 <button
                                     type="button"
-                                    onClick={handleSendTestPush}
+                                    onClick={() => handleSendTestPush('self')}
                                     className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
                                 >
                                     <Send size={16} />
-                                    Tes Push
+                                    Tes Push Saya
                                 </button>
+
+                                {/* {isAdmin && ( */}
+                                    <button
+                                        type="button"
+                                        onClick={() => handleSendTestPush('all_users')}
+                                        className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                                    >
+                                        <Send size={16} />
+                                        Tes Push Semua User
+                                    </button>
+                                {/* )} */}
 
                                 <button
                                     type="button"
@@ -193,13 +273,14 @@ export default function SalesNotifications({ notifications, unreadCount }: Props
 
                         {notifications.data.map((notification) => {
                             const isUnread = notification.status === 'unread';
+                            const hasActionLink = !!notification.action_url && !isReadEndpointUrl(notification.action_url);
 
                             return (
                                 <div
                                     key={notification.id}
-                                    className={`rounded-2xl border p-4 transition ${isUnread
-                                            ? 'border-orange-200 bg-orange-50/50 dark:border-orange-800/50 dark:bg-orange-900/10'
-                                            : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900'
+                                    className={`group rounded-2xl border p-4 transition ${isUnread
+                                        ? 'border-orange-200 bg-orange-50/50 dark:border-orange-800/50 dark:bg-orange-900/10'
+                                        : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900'
                                         }`}
                                 >
                                     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -235,9 +316,9 @@ export default function SalesNotifications({ notifications, unreadCount }: Props
                                         </div>
 
                                         <div className="flex items-center gap-2">
-                                            {notification.action_url && (
+                                            {hasActionLink && (
                                                 <Link
-                                                    href={notification.action_url}
+                                                    href={notification.action_url as string}
                                                     className="rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50 dark:border-blue-700/40 dark:text-blue-300 dark:hover:bg-blue-900/30"
                                                 >
                                                     Buka
@@ -254,9 +335,20 @@ export default function SalesNotifications({ notifications, unreadCount }: Props
                                                     Tandai Dibaca
                                                 </button>
                                             ) : (
-                                                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                                                    Sudah dibaca
-                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="hidden text-xs font-semibold text-emerald-600 transition md:inline md:group-hover:hidden dark:text-emerald-400">
+                                                        Sudah dibaca
+                                                    </span>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleMarkAsUnread(notification.id)}
+                                                        className="inline-flex items-center gap-1 rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800 md:hidden md:group-hover:inline-flex dark:bg-slate-600 dark:hover:bg-slate-500"
+                                                    >
+                                                        <Bell size={14} />
+                                                        Tandai Belum Dibaca
+                                                    </button>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
@@ -272,8 +364,8 @@ export default function SalesNotifications({ notifications, unreadCount }: Props
                                     key={`${link.label}-${index}`}
                                     href={link.url ?? '#'}
                                     className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${link.active
-                                            ? 'bg-blue-600 text-white'
-                                            : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-800'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-800'
                                         } ${!link.url ? 'pointer-events-none opacity-50' : ''}`}
                                     preserveScroll
                                     preserveState
