@@ -25,9 +25,7 @@ Route::get('/', function () {
 
 // Supervisor Routes with Inertia JS
 Route::middleware(['auth', 'verified'])->prefix('supervisor')->group(function () {
-    Route::get('dashboard', function () {
-        return Inertia::render('supervisor/dashboard');
-    });
+    Route::get('dashboard', [SupervisorController::class, 'dashboard']);
 
     Route::get('monitoring-team', [SupervisorController::class, 'monitoringTeam']);
     Route::get('monitoring-record/{user_id}', [SupervisorController::class, 'monitoringRecord'])

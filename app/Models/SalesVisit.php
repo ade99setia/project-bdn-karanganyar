@@ -27,6 +27,17 @@ class SalesVisit extends Model
         'is_fake_gps' => 'boolean',
     ];
 
+    protected static function booted(): void
+    {
+        // Auto-cache invalidation disabled - cache expires in 3 minutes
+        // If needed, use: php artisan dashboard:clear-cache
+    }
+
+    private static function clearDashboardCache($userId): void
+    {
+        // This is now handled manually via dashboard:clear-cache command
+    }
+
     public function user()
     {
         return $this->belongsTo(User::class);

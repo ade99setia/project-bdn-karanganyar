@@ -1,6 +1,6 @@
-const STATIC_CACHE = 'bdn-static-v3';
-const NAV_CACHE = 'bdn-nav-v3';
-const API_CACHE = 'bdn-api-v3';
+const STATIC_CACHE = 'bdn-static-v5';
+const NAV_CACHE = 'bdn-nav-v5';
+const API_CACHE = 'bdn-api-v5';
 const OFFLINE_PAGE = '/offline.html';
 const LAUNCHER_PAGE = '/index.html';
 
@@ -56,21 +56,9 @@ async function networkFirst(request, cacheName, fallbackPath) {
         const response = await fetch(request);
         if (response && response.ok) {
             cache.put(request, response.clone());
+        }
+        if (response) {
             return response;
-        }
-
-        const cached = await cache.match(request, { ignoreSearch: true });
-        if (cached) {
-            return cached;
-        }
-
-        const fallback = await fallbackResponse();
-        if (fallback) {
-            return fallback;
-        }
-
-        if (isDocumentRequest) {
-            return Response.redirect(buildOfflineUrl(requestUrl), 302);
         }
 
         return response;
@@ -111,8 +99,20 @@ self.addEventListener('fetch', (event) => {
     const { request } = event;
     const url = new URL(request.url);
     const isSameOrigin = url.origin === self.location.origin;
+    const isInertiaRequest = request.headers.get('X-Inertia') === 'true';
 
     if (request.method !== 'GET') {
+        return;
+    }
+
+    if (
+        isSameOrigin &&
+        (
+            isInertiaRequest ||
+            url.pathname.startsWith('/supervisor/') ||
+            url.pathname.startsWith('/settings/')
+        )
+    ) {
         return;
     }
 

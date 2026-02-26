@@ -306,7 +306,7 @@ export function usePushNotifications(options: UsePushNotificationsOptions = {}) 
 
             return {
                 success: true,
-                message: response.message || 'Push notification berhasil dinonaktifkan.',
+                message: typeof response.message === 'string' ? response.message : 'Push notification berhasil dinonaktifkan.',
             };
         } catch (error) {
             return {
@@ -359,7 +359,7 @@ async function registerDeviceToken(token: string): Promise<{
 
     return {
         success: true,
-        message: data.message || 'Push notification berhasil diaktifkan!',
+        message: typeof data.message === 'string' ? data.message : 'Push notification berhasil diaktifkan!',
         token: token,
     };
 }

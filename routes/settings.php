@@ -3,6 +3,7 @@
 use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\TwoFactorAuthenticationController;
+use App\Http\Controllers\Settings\UserManagementController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -30,4 +31,25 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('settings/two-factor', [TwoFactorAuthenticationController::class, 'show'])
         ->name('two-factor.show');
+
+    Route::get('settings/users', [UserManagementController::class, 'index'])
+        ->name('settings.users.index');
+    Route::get('settings/workday', [UserManagementController::class, 'workday'])
+        ->name('settings.workday.index');
+    Route::post('settings/users', [UserManagementController::class, 'store'])
+        ->name('settings.users.store');
+    Route::post('settings/roles', [UserManagementController::class, 'storeRole'])
+        ->name('settings.roles.store');
+    Route::put('settings/roles/{role}', [UserManagementController::class, 'updateRole'])
+        ->name('settings.roles.update');
+    Route::delete('settings/roles/{role}', [UserManagementController::class, 'destroyRole'])
+        ->name('settings.roles.destroy');
+    Route::put('settings/users/{user}', [UserManagementController::class, 'update'])
+        ->name('settings.users.update');
+    Route::delete('settings/users/{user}', [UserManagementController::class, 'destroy'])
+        ->name('settings.users.destroy');
+    Route::put('settings/workday', [UserManagementController::class, 'updateWorkday'])
+        ->name('settings.workday.update');
+    Route::put('settings/users/config', [UserManagementController::class, 'updateUserSettings'])
+        ->name('settings.users.config.update');
 });

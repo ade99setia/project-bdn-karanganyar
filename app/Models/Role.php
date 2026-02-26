@@ -12,6 +12,11 @@ class Role extends Model
     protected $fillable = [
         'name',
         'description',
+        'rank',
+    ];
+
+    protected $casts = [
+        'rank' => 'integer',
     ];
 
     public function users()
