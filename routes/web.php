@@ -102,12 +102,13 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/email/verification-status', [AuthFlowController::class, 'verificationStatus'])
         ->name('verification.status');
-
-    Route::post('/two-factor-challenge/app', [TwoFactorAuthenticatedSessionController::class, 'store'])
-        ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class])
-        ->middleware(['guest', 'throttle:two-factor'])
-        ->name('two-factor.login.app');
 });
+
+// Two-factor challenge route (must be outside auth middleware group to avoid guest middleware conflict)
+Route::post('/two-factor-challenge/app', [TwoFactorAuthenticatedSessionController::class, 'store'])
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class])
+    ->middleware(['throttle:two-factor'])
+    ->name('two-factor.login.app');
 
 
 

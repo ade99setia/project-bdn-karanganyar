@@ -17,7 +17,7 @@ class SalesVisitController extends Controller
         // 1. Validasi input
         $validated = $request->validate([
             // --- Validasi Visit Basic ---
-            'activity_type' => 'required|string',
+            'activity_type' => 'required|string|in:kunjungan,pengiriman',
             'description'   => 'nullable|string',
             'lat'           => 'required|numeric',
             'lng'           => 'required|numeric',
@@ -25,10 +25,12 @@ class SalesVisitController extends Controller
             'photo'         => 'required|image|max:10240', // Max 10MB
 
             // --- Validasi Array Produk ---
-            'products'               => 'nullable|array',
+            'products'               => 'required_if:activity_type,pengiriman|array|min:1',
             'products.*.product_id'  => 'required|exists:products,id',
             'products.*.quantity'    => 'required|integer|min:1',
-            'products.*.action_type' => 'required|string|in:sold,offered,sample,returned',
+            'products.*.action_type' => 'required|string|in:terjual,retur,sold,returned',
+            'products.*.price'       => 'nullable|integer|min:0',
+            'products.*.value'       => 'nullable|integer',
             'products.*.note'        => 'nullable|string',
 
             // --- Validasi Customer ---
@@ -113,9 +115,21 @@ class SalesVisitController extends Controller
                 // === D. SIMPAN PRODUK ===
                 if (!empty($validated['products'])) {
                     foreach ($validated['products'] as $item) {
+                        $normalizedAction = match ($item['action_type']) {
+                            'sold' => 'terjual',
+                            'returned' => 'retur',
+                            default => $item['action_type'],
+                        };
+
+                        $price = (int) ($item['price'] ?? 0);
+                        $calculatedValue = $price * (int) $item['quantity'];
+                        $signedValue = $normalizedAction === 'retur' ? -abs($calculatedValue) : abs($calculatedValue);
+
                         $visit->products()->attach($item['product_id'], [
                             'quantity'    => $item['quantity'],
-                            'action_type' => $item['action_type'],
+                            'price'       => $price,
+                            'value'       => (int) ($item['value'] ?? $signedValue),
+                            'action_type' => $normalizedAction,
                             'note'        => $item['note'] ?? null,
                             'created_at'  => now(),
                             'updated_at'  => now(),
@@ -133,13 +147,14 @@ class SalesVisitController extends Controller
     public function updateContact(Request $request, $id)
     {
         $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'notes' => 'nullable|string|max:500',
             'phone' => 'nullable|string|max:20',
-            'email' => 'nullable|email|max:100',
         ]);
 
         $customer = Customer::findOrFail($id);
         $customer->update($validated);
 
-        return redirect()->back()->with('success', 'Kontak pelanggan berhasil diperbarui.');
+        return redirect()->back()->with('success', 'Data pelanggan berhasil diperbarui.');
     }
 }

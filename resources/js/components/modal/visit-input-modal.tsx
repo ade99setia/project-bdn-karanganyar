@@ -6,7 +6,6 @@ import {
     CheckCircle2,
     Image as ImageIcon,
     Loader2,
-    Mail,
     Package,
     PenLine,
     Phone,
@@ -18,7 +17,7 @@ import {
     User,
     X,
 } from 'lucide-react';
-import type { ChangeEvent, Dispatch, SetStateAction } from 'react';
+import type { Dispatch, RefObject, SetStateAction } from 'react';
 
 interface Customer {
     id: number;
@@ -26,7 +25,6 @@ interface Customer {
     address: string;
     distance?: number;
     phone?: string;
-    email?: string;
     notes?: string;
 }
 
@@ -35,6 +33,7 @@ interface Product {
     name: string;
     file_path?: string;
     sku: string;
+    price?: number;
 }
 
 interface CartItem {
@@ -42,6 +41,7 @@ interface CartItem {
     quantity: number;
     action_type: string;
     product_name?: string;
+    unit_price?: number;
 }
 
 interface VisitInputModalProps {
@@ -54,8 +54,8 @@ interface VisitInputModalProps {
     selectedCustomerId: number | null;
     onSelectCustomer: (customer: Customer) => void;
     showContactModal: boolean;
-    tempContactData: { phone: string; email: string };
-    setTempContactData: Dispatch<SetStateAction<{ phone: string; email: string }>>;
+    tempContactData: { name: string; notes: string; phone: string };
+    setTempContactData: Dispatch<SetStateAction<{ name: string; notes: string; phone: string }>>;
     onCloseContactModal: () => void;
     onSaveContactUpdate: () => void;
     manualCustomerName: string;
@@ -64,15 +64,19 @@ interface VisitInputModalProps {
     setManualCustomerNote: Dispatch<SetStateAction<string>>;
     manualCustomerPhone: string;
     setManualCustomerPhone: Dispatch<SetStateAction<string>>;
-    manualCustomerEmail: string;
-    setManualCustomerEmail: Dispatch<SetStateAction<string>>;
     visitType: string;
-    setVisitType: Dispatch<SetStateAction<string>>;
+    setVisitType: (value: string) => void;
     description: string;
     setDescription: Dispatch<SetStateAction<string>>;
-    onPhotoChange: (event: ChangeEvent<HTMLInputElement>) => void;
     photo: File | null;
     photoPreview: string | null;
+    isCameraOpen: boolean;
+    isStartingCamera: boolean;
+    cameraError: string | null;
+    videoRef: RefObject<HTMLVideoElement | null>;
+    onStartCamera: () => void;
+    onCloseCamera: () => void;
+    onCaptureFromCamera: () => void;
     products: Product[];
     tempProdId: string;
     setTempProdId: Dispatch<SetStateAction<string>>;
@@ -113,15 +117,19 @@ export default function VisitInputModal({
     setManualCustomerNote,
     manualCustomerPhone,
     setManualCustomerPhone,
-    manualCustomerEmail,
-    setManualCustomerEmail,
     visitType,
     setVisitType,
     description,
     setDescription,
-    onPhotoChange,
     photo,
     photoPreview,
+    isCameraOpen,
+    isStartingCamera,
+    cameraError,
+    videoRef,
+    onStartCamera,
+    onCloseCamera,
+    onCaptureFromCamera,
     products,
     tempProdId,
     setTempProdId,
@@ -145,9 +153,116 @@ export default function VisitInputModal({
 
     const isDatabaseSelected = customerMode === 'database' && !!selectedCustomerId;
     const isManualComplete = customerMode === 'manual' && manualCustomerName.trim() && manualCustomerNote.trim();
+    const canProceedToActivity = isDatabaseSelected || isManualComplete;
+    const isKunjungan = visitType === 'kunjungan';
+    const isPengiriman = visitType === 'pengiriman';
+    const hasValidVisitType = isKunjungan || isPengiriman;
+    const hasDescription = description.trim().length > 0;
+    const hasPhoto = !!photo;
+    const canSubmit = canProceedToActivity
+        && hasValidVisitType
+        && hasDescription
+        && hasPhoto
+        && (isKunjungan || (isPengiriman && cart.length > 0));
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+            <AnimatePresence>
+                {isCameraOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.98 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 1.02 }}
+                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                        className="fixed inset-0 z-999 bg-black flex flex-col overflow-hidden"
+                    >
+                        {/* Video Feed */}
+                        <video
+                            ref={videoRef}
+                            autoPlay
+                            playsInline
+                            muted
+                            className="absolute inset-0 w-full h-full object-cover"
+                        />
+
+                        {/* Top Header - Glassmorphism */}
+                        <div className="absolute top-0 inset-x-0 px-6 py-5 flex justify-between items-center bg-linear-to-b from-black/70 to-transparent z-20">
+                            <span className="text-white/90 font-medium tracking-wide text-sm drop-shadow-md">
+                                Ambil Foto
+                            </span>
+                            <button
+                                type="button"
+                                onClick={onCloseCamera}
+                                disabled={isCompressing}
+                                className="p-2.5 rounded-full bg-black/20 text-white backdrop-blur-md border border-white/10 transition-all hover:bg-black/40 disabled:opacity-50"
+                                aria-label="Tutup kamera"
+                            >
+                                {/* Ikon X sederhana */}
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+                            </button>
+                        </div>
+
+                        {/* Viewfinder / Focus Frame (Opsional untuk estetika premium) */}
+                        <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center p-8">
+                            <div className="w-full h-full max-h-[60vh] max-w-[85vw] sm:max-w-md relative opacity-60">
+                                {/* Corner Brackets */}
+                                <div className="absolute top-0 left-0 w-10 h-10 border-t-2 border-l-2 border-white rounded-tl-3xl"></div>
+                                <div className="absolute top-0 right-0 w-10 h-10 border-t-2 border-r-2 border-white rounded-tr-3xl"></div>
+                                <div className="absolute bottom-0 left-0 w-10 h-10 border-b-2 border-l-2 border-white rounded-bl-3xl"></div>
+                                <div className="absolute bottom-0 right-0 w-10 h-10 border-b-2 border-r-2 border-white rounded-br-3xl"></div>
+
+                                {/* Center Crosshair (Titik fokus di tengah) */}
+                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                                    <div className="w-1 h-1 bg-white/50 rounded-full"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Bottom Controls */}
+                        <div className="absolute bottom-0 inset-x-0 pb-12 pt-32 bg-linear-to-t from-black/90 via-black/50 to-transparent z-20">
+                            <div className="flex items-center justify-between w-full max-w-md mx-auto px-10">
+
+                                {/* Tombol Batal */}
+                                <button
+                                    type="button"
+                                    onClick={onCloseCamera}
+                                    disabled={isCompressing}
+                                    className="text-white/70 font-medium text-sm hover:text-white transition-colors disabled:opacity-50 w-16 text-left"
+                                >
+                                    Batal
+                                </button>
+
+                                {/* Shutter Button (Tombol Jepret Utama) */}
+                                <motion.button
+                                    whileTap={{ scale: 0.9 }}
+                                    type="button"
+                                    onClick={onCaptureFromCamera}
+                                    disabled={isCompressing}
+                                    className="relative flex items-center justify-center w-21 h-21 rounded-full border-[3px] border-white/80 disabled:opacity-50 transition-all hover:border-white focus:outline-none"
+                                    aria-label="Ambil Gambar"
+                                >
+                                    {isCompressing ? (
+                                        <div className="w-17 h-17 rounded-full bg-white/50 flex items-center justify-center animate-pulse">
+                                            {/* Loading Spinner Kecil */}
+                                            <svg className="animate-spin h-6 w-6 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                        </div>
+                                    ) : (
+                                        <div className="w-17 h-17 rounded-full bg-white transition-all hover:bg-slate-200"></div>
+                                    )}
+                                </motion.button>
+
+                                {/* Spacer kosong untuk menyeimbangkan flexbox agar tombol shutter tepat di tengah */}
+                                <div className="w-16"></div>
+
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -195,13 +310,35 @@ export default function VisitInputModal({
                                         <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
                                             <PenLine size={20} />
                                         </div>
-                                        <h3 className="font-bold text-lg text-zinc-800 dark:text-zinc-100">Lengkapi Data?</h3>
+                                        <h3 className="font-bold text-lg text-zinc-800 dark:text-zinc-100">Perbarui Data Pelanggan</h3>
                                         <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                                            Data pelanggan ini belum memiliki Telepon atau Email. Mau dilengkapi sekarang? (Tidak wajib).
+                                            Silakan cek dan revisi data pelanggan di bawah ini sebelum lanjut input kunjungan.
                                         </p>
                                     </div>
 
                                     <div className="space-y-3">
+                                        <div>
+                                            <label className="text-xs font-semibold text-zinc-600 ml-1">Nama Pelanggan / Toko</label>
+                                            <input
+                                                type="text"
+                                                value={tempContactData.name}
+                                                onChange={(e) => setTempContactData({ ...tempContactData, name: e.target.value })}
+                                                placeholder="Masukkan nama pelanggan"
+                                                className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="text-xs font-semibold text-zinc-600 ml-1">Catatan</label>
+                                            <input
+                                                type="text"
+                                                value={tempContactData.notes}
+                                                onChange={(e) => setTempContactData({ ...tempContactData, notes: e.target.value })}
+                                                placeholder="Contoh: Nama toko, patokan, dll"
+                                                className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                            />
+                                        </div>
+
                                         <div>
                                             <label className="text-xs font-semibold text-zinc-600 ml-1">Nomor Telepon</label>
                                             <input
@@ -212,30 +349,20 @@ export default function VisitInputModal({
                                                 className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                                             />
                                         </div>
-                                        <div>
-                                            <label className="text-xs font-semibold text-zinc-600 ml-1">Email</label>
-                                            <input
-                                                type="email"
-                                                value={tempContactData.email}
-                                                onChange={(e) => setTempContactData({ ...tempContactData, email: e.target.value })}
-                                                placeholder="example@gmail.com"
-                                                className="w-full mt-1 px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                            />
-                                        </div>
                                     </div>
 
                                     <div className="flex gap-2 pt-2">
-                                        <button
-                                            onClick={onCloseContactModal}
-                                            className="flex-1 py-2.5 text-xs font-bold text-zinc-500 bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-400 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
-                                        >
-                                            Nanti Saja
-                                        </button>
                                         <button
                                             onClick={onSaveContactUpdate}
                                             className="flex-1 py-2.5 text-xs font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 shadow-md shadow-blue-200 dark:shadow-none transition-colors"
                                         >
                                             Simpan Data
+                                        </button>
+                                        <button
+                                            onClick={onCloseContactModal}
+                                            className="flex-1 py-2.5 text-xs font-bold text-zinc-500 bg-zinc-100 dark:bg-zinc-800 dark:text-zinc-400 rounded-xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                                        >
+                                            Tutup
                                         </button>
                                     </div>
                                 </div>
@@ -306,22 +433,16 @@ export default function VisitInputModal({
                                                     </p>
 
                                                     <div className="mt-2 space-y-1.5 text-xs">
-                                                        {cust.phone && (
-                                                            <div className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400">
-                                                                <Phone size={13} className="text-zinc-400 shrink-0 mt-0.5" />
-                                                                <span className="truncate">{cust.phone}</span>
-                                                            </div>
-                                                        )}
-                                                        {cust.email && (
-                                                            <div className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400">
-                                                                <Mail size={13} className="text-zinc-400 shrink-0 mt-0.5" />
-                                                                <span className="truncate">{cust.email}</span>
-                                                            </div>
-                                                        )}
                                                         {cust.notes && (
                                                             <div className="flex items-start gap-2 text-zinc-500 dark:text-zinc-400">
                                                                 <StickyNote size={13} className="text-zinc-400 shrink-0" />
                                                                 <p className="line-clamp-2 leading-tight flex-1">{cust.notes}</p>
+                                                            </div>
+                                                        )}
+                                                        {cust.phone && (
+                                                            <div className="flex items-center gap-2 text-zinc-600 dark:text-zinc-400">
+                                                                <Phone size={13} className="text-zinc-400 shrink-0 mt-0.5" />
+                                                                <span className="truncate">{cust.phone}</span>
                                                             </div>
                                                         )}
                                                     </div>
@@ -360,7 +481,7 @@ export default function VisitInputModal({
                                         type="text"
                                         value={manualCustomerName}
                                         onChange={(e) => setManualCustomerName(e.target.value)}
-                                        placeholder="Nama Pelanggan / Toko Baru..."
+                                        placeholder="Nama Pelanggan / Pemilik Toko..."
                                         className="w-full pl-10 pr-4 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm outline-none font-bold text-zinc-800 dark:text-zinc-200"
                                     />
                                 </div>
@@ -371,7 +492,7 @@ export default function VisitInputModal({
                                         type="text"
                                         value={manualCustomerNote}
                                         onChange={(e) => setManualCustomerNote(e.target.value)}
-                                        placeholder="Catatan Toko (Cth: Pagar Hitam, Galak, dll)"
+                                        placeholder="Nama Toko"
                                         className="w-full pl-10 pr-4 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm outline-none text-zinc-600 dark:text-zinc-400"
                                     />
                                 </div>
@@ -387,16 +508,6 @@ export default function VisitInputModal({
                                     />
                                 </div>
 
-                                <div className="relative">
-                                    <Mail className="absolute left-3 top-3.5 text-zinc-400" size={16} />
-                                    <input
-                                        type="email"
-                                        value={manualCustomerEmail}
-                                        onChange={(e) => setManualCustomerEmail(e.target.value)}
-                                        placeholder="Email (Opsional)"
-                                        className="w-full pl-9 pr-3 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-xs outline-none text-zinc-600 dark:text-zinc-400"
-                                    />
-                                </div>
                             </div>
                         )}
 
@@ -404,10 +515,10 @@ export default function VisitInputModal({
                             <motion.div
                                 initial={{ opacity: 0, y: -8 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800"
+                                className="flex items-center gap-2 px-3 py-2 bg-orange-50 dark:bg-orange-900/20 rounded-xl border border-orange-200 dark:border-orange-800"
                             >
-                                <CheckCircle2 size={16} className="text-blue-600 dark:text-blue-400 shrink-0" />
-                                <span className="text-xs font-bold text-blue-700 dark:text-blue-300">
+                                <CheckCircle2 size={16} className="text-orange-600 dark:text-orange-400 shrink-0" />
+                                <span className="text-xs font-bold text-orange-700 dark:text-orange-300">
                                     PELANGGAN TERPILIH
                                 </span>
                             </motion.div>
@@ -445,16 +556,14 @@ export default function VisitInputModal({
                         </div>
                     )}
 
-                    {(isDatabaseSelected || isManualComplete) && (
+                    {canProceedToActivity && (
                         <>
                             <div className="space-y-3">
                                 <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Jenis Aktivitas</label>
                                 <div className="grid grid-cols-2 gap-2.5">
                                     {[
-                                        { id: 'visit', label: 'Kunjungan' },
-                                        { id: 'canvassing', label: 'Kanvasing' },
-                                        { id: 'collection', label: 'Penagihan' },
-                                        { id: 'delivery', label: 'Pengiriman' },
+                                        { id: 'kunjungan', label: 'Kunjungan' },
+                                        { id: 'pengiriman', label: 'Pengiriman' },
                                     ].map((item) => (
                                         <button
                                             key={item.id}
@@ -470,302 +579,419 @@ export default function VisitInputModal({
                                 </div>
                             </div>
 
-                            <div className="space-y-2.5">
-                                <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Catatan Kunjungan</label>
-                                <div className="relative">
-                                    <textarea
-                                        value={description}
-                                        onChange={(e) => setDescription(e.target.value)}
-                                        rows={3}
-                                        className="w-full pl-4 pr-4 py-3 bg-zinc-50/70 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-700 rounded-2xl focus:outline-none focus:border-blue-500 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 shadow-inner"
-                                        placeholder="Tulis hasil kunjungan di sini..."
-                                    />
+                            {!hasValidVisitType && (
+                                <div className="relative py-1 flex flex-col items-center justify-center overflow-hidden">
+                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                        <div className="w-40 h-40 bg-blue-500/10 blur-[80px] rounded-full" />
+                                    </div>
+                                    <div className="relative flex items-center gap-3 justify-center">
+                                        <div className="h-px w-8 bg-linear-to-r from-transparent to-blue-500/50" />
+                                        <span className="text-[10px] font-black text-blue-500 tracking-[0.3em] uppercase whitespace-nowrap">
+                                            Pilih Jenis Aktivitas Dulu
+                                        </span>
+                                        <div className="h-px w-8 bg-linear-to-l from-transparent to-blue-500/50" />
+                                    </div>
                                 </div>
-                            </div>
+                            )}
 
-                            <div className="space-y-2.5">
-                                <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Foto Bukti Kunjungan</label>
-                                <label className="block relative cursor-pointer group">
-                                    <input type="file" accept="image/*" capture="environment" onChange={onPhotoChange} disabled={isCompressing} className="absolute inset-0 opacity-0 cursor-pointer z-10 disabled:cursor-not-allowed" />
-                                    <div className={`border-2 border-dashed rounded-2xl h-52 flex items-center justify-center transition-all overflow-hidden ${photo ? 'border-blue-400 bg-blue-50/20' : 'border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-900/50'}`}>
-                                        {photo ? (
-                                            <div className="relative w-full h-full">
-                                                <img src={photoPreview ?? undefined} className="w-full h-full object-cover" alt="Preview" />
-                                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <span className="text-white text-xs font-bold bg-black/50 px-4 py-2 rounded-full backdrop-blur-md">GANTI FOTO</span>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="text-center">
-                                                <Camera size={32} className="mx-auto mb-2 text-zinc-400" />
-                                                <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Ambil Foto</p>
-                                            </div>
-                                        )}
-
-                                        {isCompressing && (
-                                            <div className="absolute inset-0 z-20 bg-zinc-950/60 backdrop-blur-[1px] flex flex-col items-center justify-center gap-2 text-white">
-                                                <Loader2 size={26} className="animate-spin" />
-                                                <p className="text-xs font-bold uppercase tracking-widest">Sedang convert foto...</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </label>
-                            </div>
-
-                            {photo ? (
-                                <div className="space-y-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
-                                    <div className="flex items-center gap-2">
-                                        <Package size={18} className="text-orange-500" />
-                                        <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-50 uppercase tracking-wider">Aksi Produk</h4>
+                            {hasValidVisitType && (
+                                <>
+                                    <div className="space-y-2.5">
+                                        <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Catatan Kunjungan</label>
+                                        <div className="relative">
+                                            <textarea
+                                                value={description}
+                                                onChange={(e) => setDescription(e.target.value)}
+                                                rows={3}
+                                                className="w-full pl-4 pr-4 py-3 bg-zinc-50/70 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-700 rounded-2xl focus:outline-none focus:border-blue-500 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 shadow-inner"
+                                                placeholder="Tulis hasil kunjungan di sini..."
+                                            />
+                                        </div>
                                     </div>
 
-                                    <div className="space-y-2 relative">
-                                        <label className="text-xs font-bold text-zinc-400 px-1 uppercase tracking-tight">Cari Produk</label>
+                                    <div className="space-y-2.5">
+                                        <label className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Foto Bukti Kunjungan</label>
                                         <div className="space-y-2">
-                                            <div className="relative">
-                                                <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" />
-                                                <input
-                                                    type="text"
-                                                    placeholder="Ketik nama atau SKU produk..."
-                                                    value={searchQuery}
-                                                    onChange={(e) => {
-                                                        setSearchQuery(e.target.value);
-                                                        setShowResults(true);
-                                                    }}
-                                                    onFocus={() => setShowResults(true)}
-                                                    className="w-full h-12 pl-12 pr-4 bg-zinc-100 dark:bg-zinc-900 border-none rounded-2xl text-sm font-semibold focus:ring-2 focus:ring-orange-500 transition-all"
-                                                />
-                                            </div>
-
-                                            {tempProdId && !showResults && (
-                                                <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-2xl border-2 border-orange-300 dark:border-orange-700">
-                                                    {(() => {
-                                                        const selected = products.find(p => p.id === Number(tempProdId));
-                                                        return (
-                                                            <>
-                                                                <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 shadow-md border-2 border-orange-200 dark:border-orange-800">
-                                                                    {selected?.file_path ? (
-                                                                        <button
-                                                                            onClick={() => onPreviewImage(`/storage/${selected.file_path}`)}
-                                                                            className="w-full h-full block cursor-pointer group"
-                                                                        >
-                                                                            <img src={`/storage/${selected.file_path}`} alt={selected.name} className="w-full h-full object-cover group-hover:brightness-110 transition-all" />
-                                                                        </button>
-                                                                    ) : (
-                                                                        <div className="w-full h-full flex items-center justify-center bg-zinc-200 dark:bg-zinc-700"><ImageIcon size={24} className="text-zinc-400" /></div>
-                                                                    )}
-                                                                </div>
-                                                                <div className="flex-1 min-w-0">
-                                                                    <p className="text-sm font-bold text-orange-900 dark:text-orange-100 truncate">{selected?.name}</p>
-                                                                    <p className="text-xs text-orange-700 dark:text-orange-300 font-mono">{selected?.sku}</p>
-                                                                </div>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        setTempProdId('');
-                                                                        setSearchQuery('');
-                                                                    }}
-                                                                    className="p-1.5 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-900/40 transition-colors text-orange-600"
-                                                                >
-                                                                    <X size={18} />
-                                                                </button>
-                                                            </>
-                                                        );
-                                                    })()}
-                                                </motion.div>
-                                            )}
-                                        </div>
-
-                                        <AnimatePresence>
-                                            {showResults && searchQuery.length > 0 && (
-                                                <motion.div
-                                                    initial={{ opacity: 0, y: -10 }}
-                                                    animate={{ opacity: 1, y: 0 }}
-                                                    exit={{ opacity: 0 }}
-                                                    className="absolute z-50 w-full mt-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl max-h-60 overflow-y-auto p-2 thin-scrollbar"
-                                                >
-                                                    {products
-                                                        .filter(p =>
-                                                            p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                                                            p.sku.toLowerCase().includes(searchQuery.toLowerCase())
-                                                        )
-                                                        .map(p => (
-                                                            <button
-                                                                key={p.id}
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    setTempProdId(String(p.id));
-                                                                    setSearchQuery(p.name);
-                                                                    setShowResults(false);
-                                                                }}
-                                                                className="w-full flex items-center gap-3 p-2 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-xl transition-colors text-left group"
-                                                            >
-                                                                <div className="w-12 h-12 rounded-lg bg-zinc-100 dark:bg-zinc-800 overflow-hidden shrink-0 border border-zinc-200 dark:border-zinc-700">
-                                                                    {p.file_path ? (
-                                                                        <div
-                                                                            role="button"
-                                                                            tabIndex={0}
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                onPreviewImage(`/storage/${p.file_path}`);
-                                                                            }}
-                                                                            className="w-full h-full block cursor-pointer group"
-                                                                        >
-                                                                            <img src={`/storage/${p.file_path}`} alt={p.name} className="w-full h-full object-cover group-hover:brightness-110 transition-all" />
-                                                                        </div>
-                                                                    ) : (
-                                                                        <div className="w-full h-full flex items-center justify-center"><ImageIcon size={20} className="text-zinc-400" /></div>
-                                                                    )}
-                                                                </div>
-                                                                <div className="flex-1 min-w-0">
-                                                                    <p className="text-sm font-bold truncate dark:text-zinc-100 group-hover:text-orange-600 transition-colors">{p.name}</p>
-                                                                    <p className="text-[10px] text-zinc-500 font-mono tracking-tighter uppercase">{p.sku}</p>
-                                                                </div>
-                                                                <Plus size={16} className="text-zinc-300 group-hover:text-orange-500" />
-                                                            </button>
-                                                        ))}
-
-                                                    {products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
-                                                        <div className="p-4 text-center text-zinc-500 text-xs italic">Produk tidak ditemukan...</div>
-                                                    )}
-                                                </motion.div>
-                                            )}
-                                        </AnimatePresence>
-
-                                        {tempProdId && !showResults && (
-                                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 px-2 py-1">
-                                                <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-                                                <span className="text-[11px] font-bold text-orange-600/70 dark:text-orange-400">PRODUK TERPILIH</span>
-                                            </motion.div>
-                                        )}
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {[
-                                            { id: 'sold', label: 'Terjual' },
-                                            { id: 'offered', label: 'Ditawarkan' },
-                                            { id: 'sample', label: 'Sample' },
-                                            { id: 'returned', label: 'Retur' },
-                                        ].map((action) => (
-                                            <button
-                                                key={action.id}
-                                                type="button"
-                                                onClick={() => setTempAction(action.id)}
-                                                className={`py-3.5 rounded-2xl text-[13px] font-bold border-2 transition-all duration-200 ${tempAction === action.id
-                                                    ? 'bg-orange-500 border-orange-500 text-white shadow-lg shadow-orange-500/20'
-                                                    : 'bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800 text-zinc-500'
-                                                    }`}
-                                            >
-                                                {action.label}
-                                            </button>
-                                        ))}
-                                    </div>
-
-                                    <div className="space-y-3">
-                                        <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-                                            {[1, 5, 10, 25, 50, 100].map((num) => (
-                                                <button
-                                                    key={num}
-                                                    type="button"
-                                                    onClick={() => setTempQty(prev => (Number(prev) || 0) + num)}
-                                                    className="flex-none px-4 py-2 rounded-xl text-xs font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-transparent hover:border-orange-500 hover:text-orange-600 transition-all"
-                                                >
-                                                    +{num}
-                                                </button>
-                                            ))}
                                             <button
                                                 type="button"
-                                                onClick={() => setTempQty(0)}
-                                                className="flex-none px-4 py-2 rounded-xl text-xs font-bold bg-red-50 dark:bg-red-900/20 text-red-500"
+                                                onClick={onStartCamera}
+                                                disabled={isStartingCamera || isCompressing}
+                                                className={`relative w-full border-2 border-dashed rounded-2xl h-52 flex items-center justify-center transition-all overflow-hidden ${photo || isCameraOpen ? 'border-blue-400 bg-blue-50/20' : 'border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-900/50'} disabled:opacity-70`}
                                             >
-                                                Reset
-                                            </button>
-                                        </div>
-
-                                        <div className="flex gap-2">
-                                            <div className="relative flex-1">
-                                                <input
-                                                    type="number"
-                                                    placeholder="0"
-                                                    value={tempQty || ''}
-                                                    onChange={(e) => setTempQty(Number(e.target.value))}
-                                                    className="w-full h-14 bg-zinc-100 dark:bg-zinc-900 border-none rounded-2xl text-center font-black text-lg focus:ring-2 focus:ring-orange-500"
-                                                />
-                                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-zinc-400">UNIT</span>
-                                                {tempQty > 0 && (
-                                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-orange-500 bg-orange-50 dark:bg-orange-900/30 px-2 py-1 rounded-lg">
-                                                        Total
+                                                {photo ? (
+                                                    <div className="relative w-full h-full">
+                                                        <img src={photoPreview ?? undefined} className="w-full h-full object-cover" alt="Preview" />
+                                                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                                                            <span className="text-white text-xs font-bold bg-black/50 px-4 py-2 rounded-full backdrop-blur-md">
+                                                                AMBIL ULANG DARI KAMERA
+                                                            </span>
+                                                        </div>
                                                     </div>
+                                                ) : (
+                                                    <div className="text-center">
+                                                        <Camera size={32} className="mx-auto mb-2 text-zinc-400" />
+                                                        <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+                                                            {isStartingCamera ? 'Membuka Kamera...' : 'Tap Untuk Buka Kamera'}
+                                                        </p>
+                                                    </div>
+                                                )}
+
+                                                {isCompressing && (
+                                                    <div className="absolute inset-0 z-20 bg-zinc-950/60 backdrop-blur-[1px] flex flex-col items-center justify-center gap-2 text-white">
+                                                        <Loader2 size={26} className="animate-spin" />
+                                                        <p className="text-xs font-bold uppercase tracking-widest">Sedang convert foto...</p>
+                                                    </div>
+                                                )}
+                                            </button>
+
+                                            {cameraError && (
+                                                <p className="text-[11px] font-semibold text-red-500">{cameraError}</p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                            {isPengiriman ? (
+                                photo ? (
+                                    <div className="space-y-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                                        <div className="flex items-center gap-2">
+                                            <Package size={18} className="text-orange-500" />
+                                            <h4 className="text-sm font-bold text-zinc-900 dark:text-zinc-50 uppercase tracking-wider">Aksi Produk</h4>
+                                        </div>
+
+                                        <div className="space-y-2 relative">
+                                            <label className="text-xs font-bold text-zinc-400 px-1 uppercase tracking-tight">Cari Produk</label>
+                                            <div className="space-y-2">
+                                                <div className="relative">
+                                                    <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Ketik nama atau SKU produk..."
+                                                        value={searchQuery}
+                                                        onChange={(e) => {
+                                                            setSearchQuery(e.target.value);
+                                                            setShowResults(true);
+                                                        }}
+                                                        onFocus={() => setShowResults(true)}
+                                                        className="w-full h-12 pl-12 pr-4 bg-zinc-100 dark:bg-zinc-900 border-none rounded-2xl text-sm font-semibold focus:ring-2 focus:ring-orange-500 transition-all"
+                                                    />
+                                                </div>
+
+                                                {tempProdId && !showResults && (
+                                                    <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-2xl border-2 border-orange-300 dark:border-orange-700">
+                                                        {(() => {
+                                                            const selected = products.find(p => p.id === Number(tempProdId));
+                                                            return (
+                                                                <>
+                                                                    <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 shadow-md border-2 border-orange-200 dark:border-orange-800">
+                                                                        {selected?.file_path ? (
+                                                                            <button
+                                                                                onClick={() => onPreviewImage(`/storage/${selected.file_path}`)}
+                                                                                className="w-full h-full block cursor-pointer group"
+                                                                            >
+                                                                                <img src={`/storage/${selected.file_path}`} alt={selected.name} className="w-full h-full object-cover group-hover:brightness-110 transition-all" />
+                                                                            </button>
+                                                                        ) : (
+                                                                            <div className="w-full h-full flex items-center justify-center bg-zinc-200 dark:bg-zinc-700"><ImageIcon size={24} className="text-zinc-400" /></div>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <p className="text-sm font-bold text-orange-900 dark:text-orange-100 truncate">{selected?.name}</p>
+                                                                        <p className="text-xs text-orange-700 dark:text-orange-300 font-mono">{selected?.sku}</p>
+                                                                    </div>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setTempProdId('');
+                                                                            setSearchQuery('');
+                                                                        }}
+                                                                        className="p-1.5 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-900/40 transition-colors text-orange-600"
+                                                                    >
+                                                                        <X size={18} />
+                                                                    </button>
+                                                                </>
+                                                            );
+                                                        })()}
+                                                    </motion.div>
                                                 )}
                                             </div>
 
-                                            <button
-                                                onClick={() => {
-                                                    addToCart();
-                                                    setSearchQuery('');
-                                                    setTempQty(0);
-                                                }}
-                                                disabled={!tempProdId || tempQty <= 0}
-                                                className="px-8 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-2xl font-black text-sm active:scale-95 transition-all shadow-lg shadow-blue-600/20"
-                                            >
-                                                TAMBAH
-                                            </button>
-                                        </div>
-                                    </div>
+                                            <AnimatePresence>
+                                                {showResults && (
+                                                    <motion.div
+                                                        initial={{ opacity: 0, y: -10 }}
+                                                        animate={{ opacity: 1, y: 0 }}
+                                                        exit={{ opacity: 0 }}
+                                                        className="absolute z-50 w-full mt-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl max-h-60 overflow-y-auto p-2 thin-scrollbar"
+                                                    >
+                                                        {(searchQuery.trim().length > 0
+                                                            ? products.filter(p =>
+                                                                p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                                                p.sku.toLowerCase().includes(searchQuery.toLowerCase())
+                                                            )
+                                                            : products.slice(0, 10)
+                                                        )
+                                                            .map(p => (
+                                                                <button
+                                                                    key={p.id}
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setTempProdId(String(p.id));
+                                                                        setSearchQuery(p.name);
+                                                                        setShowResults(false);
+                                                                    }}
+                                                                    className="w-full flex items-center gap-3 p-2 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-xl transition-colors text-left group"
+                                                                >
+                                                                    <div className="w-12 h-12 rounded-lg bg-zinc-100 dark:bg-zinc-800 overflow-hidden shrink-0 border border-zinc-200 dark:border-zinc-700">
+                                                                        {p.file_path ? (
+                                                                            <div
+                                                                                role="button"
+                                                                                tabIndex={0}
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    onPreviewImage(`/storage/${p.file_path}`);
+                                                                                }}
+                                                                                className="w-full h-full block cursor-pointer group"
+                                                                            >
+                                                                                <img src={`/storage/${p.file_path}`} alt={p.name} className="w-full h-full object-cover group-hover:brightness-110 transition-all" />
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="w-full h-full flex items-center justify-center"><ImageIcon size={20} className="text-zinc-400" /></div>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <p className="text-sm font-bold truncate dark:text-zinc-100 group-hover:text-orange-600 transition-colors">{p.name}</p>
+                                                                        <p className="text-[10px] text-zinc-500 font-mono tracking-tighter uppercase">{p.sku}</p>
+                                                                    </div>
+                                                                    <Plus size={16} className="text-zinc-300 group-hover:text-orange-500" />
+                                                                </button>
+                                                            ))}
 
-                                    {cart.length > 0 && (
-                                        <div className="space-y-3 mt-4">
-                                            {cart.map((item, idx) => {
-                                                const cartProduct = products.find(p => p.id === item.product_id);
-                                                return (
-                                                    <div key={idx} className="flex items-center gap-3 p-3 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-sm">
-                                                        <div className="w-12 h-12 rounded-lg bg-zinc-100 dark:bg-zinc-800 overflow-hidden shrink-0 border border-zinc-200 dark:border-zinc-700">
-                                                            {cartProduct?.file_path ? (
-                                                                <img src={`/storage/${cartProduct.file_path}`} alt={item.product_name} className="w-full h-full object-cover" />
-                                                            ) : (
-                                                                <div className="w-full h-full flex items-center justify-center"><ImageIcon size={20} className="text-zinc-400" /></div>
+                                                        {searchQuery.trim().length > 0 && products.filter(p =>
+                                                            p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                                                            p.sku.toLowerCase().includes(searchQuery.toLowerCase())
+                                                        ).length === 0 && (
+                                                                <div className="p-4 text-center text-zinc-500 text-xs italic">Produk tidak ditemukan...</div>
                                                             )}
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="text-xs font-bold truncate">{item.product_name}</p>
-                                                            <div className="flex gap-2 mt-0.5">
-                                                                <span className="text-[10px] font-black text-blue-600 uppercase">{item.quantity} UNIT</span>
-                                                                <span className="text-[10px] font-black text-zinc-400 uppercase italic">/ {item.action_type}</span>
-                                                            </div>
-                                                        </div>
-                                                        <button onClick={() => removeFromCart(idx)} className="p-2 text-red-500">
-                                                            <Trash2 size={16} />
-                                                        </button>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <div className="relative py-0 flex flex-col items-center justify-center overflow-hidden">
-                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 bg-orange-500/10 blur-[80px] rounded-full pointer-events-none" />
+                                                    </motion.div>
+                                                )}
+                                            </AnimatePresence>
 
-                                    <div className="relative flex flex-col items-center gap-4">
-                                        <div className="flex items-center gap-3 w-full">
-                                            <div className="h-px w-8 bg-linear-to-r from-transparent to-orange-500/50" />
-                                            <span className="text-[10px] font-black text-orange-500 tracking-[0.3em] uppercase whitespace-nowrap">
-                                                Ambil foto terlebih dahulu
-                                            </span>
-                                            <div className="h-px w-8 bg-linear-to-l from-transparent to-orange-500/50" />
+                                            {tempProdId && !showResults && (
+                                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 px-2 py-1">
+                                                    <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                                                    <span className="text-[11px] font-bold text-orange-600/70 dark:text-orange-400">PRODUK TERPILIH</span>
+                                                </motion.div>
+                                            )}
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {[
+                                                { id: 'retur', label: 'Retur' },
+                                                { id: 'terjual', label: 'Terjual' },
+                                            ].map((action) => (
+                                                <button
+                                                    key={action.id}
+                                                    type="button"
+                                                    onClick={() => setTempAction(action.id)}
+                                                    className={`py-3.5 rounded-2xl text-[13px] font-bold border-2 transition-all duration-200 ${tempAction === action.id
+                                                        ? 'bg-orange-500 border-orange-500 text-white shadow-lg shadow-orange-500/20'
+                                                        : 'bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800 text-zinc-500'
+                                                        }`}
+                                                >
+                                                    {action.label}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                                                {[1, 5, 10, 25, 50, 100].map((num) => (
+                                                    <button
+                                                        key={num}
+                                                        type="button"
+                                                        onClick={() => setTempQty(prev => (Number(prev) || 0) + num)}
+                                                        className="flex-none px-4 py-2 rounded-xl text-xs font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-transparent hover:border-orange-500 hover:text-orange-600 transition-all"
+                                                    >
+                                                        +{num}
+                                                    </button>
+                                                ))}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setTempQty(0)}
+                                                    className="flex-none px-4 py-2 rounded-xl text-xs font-bold bg-red-50 dark:bg-red-900/20 text-red-500"
+                                                >
+                                                    Reset
+                                                </button>
+                                            </div>
+
+                                            <div className="flex gap-2">
+                                                <div className="relative flex-1">
+                                                    <input
+                                                        type="number"
+                                                        placeholder="0"
+                                                        value={tempQty || ''}
+                                                        onChange={(e) => setTempQty(Number(e.target.value))}
+                                                        className="w-full h-14 bg-zinc-100 dark:bg-zinc-900 border-none rounded-2xl text-center font-black text-lg focus:ring-2 focus:ring-orange-500"
+                                                    />
+                                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-zinc-400">UNIT</span>
+                                                    {tempQty > 0 && (
+                                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-orange-500 bg-orange-50 dark:bg-orange-900/30 px-2 py-1 rounded-lg">
+                                                            {(() => {
+                                                                const selected = products.find(p => p.id === Number(tempProdId));
+                                                                const total = (selected?.price || 0) * tempQty;
+                                                                return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(total);
+                                                            })()}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                <button
+                                                    onClick={() => {
+                                                        addToCart();
+                                                        setSearchQuery('');
+                                                        setTempQty(0);
+                                                    }}
+                                                    disabled={!tempProdId || tempQty <= 0}
+                                                    className="px-8 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-2xl font-black text-sm active:scale-95 transition-all shadow-lg shadow-blue-600/20"
+                                                >
+                                                    TAMBAH
+                                                </button>
+                                            </div>
+
+                                            {/* Product Price Display */}
+                                            {tempProdId && !showResults && (
+                                                <div className="grid grid-cols-2 gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-2xl border-2 border-blue-300 dark:border-blue-700">
+                                                    <div>
+                                                        <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-tight">Harga Jual</p>
+                                                        <p className="text-sm font-black text-blue-900 dark:text-blue-100">
+                                                            {(() => {
+                                                                const selected = products.find(p => p.id === Number(tempProdId));
+                                                                return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selected?.price || 0);
+                                                            })()}
+                                                        </p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-tight">Total Value</p>
+                                                        <p className="text-sm font-black text-blue-900 dark:text-blue-100">
+                                                            {(() => {
+                                                                const selected = products.find(p => p.id === Number(tempProdId));
+                                                                const total = (selected?.price || 0) * tempQty;
+                                                                return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(total);
+                                                            })()}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {cart.length > 0 && (
+                                            <div className="space-y-3 mt-4">
+                                                {cart.map((item, idx) => {
+                                                    const cartProduct = products.find(p => p.id === item.product_id);
+                                                    const unitPrice = item.unit_price ?? cartProduct?.price ?? 0;
+                                                    const itemTotal = unitPrice * item.quantity;
+                                                    const isRetur = item.action_type === 'retur' || item.action_type === 'returned';
+                                                    const displayValue = isRetur ? -itemTotal : itemTotal;
+
+                                                    return (
+                                                        <div key={idx} className="flex items-center gap-3 p-3 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 shadow-sm">
+                                                            <div className="w-12 h-12 rounded-lg bg-zinc-100 dark:bg-zinc-800 overflow-hidden shrink-0 border border-zinc-200 dark:border-zinc-700">
+                                                                {cartProduct?.file_path ? (
+                                                                    <img src={`/storage/${cartProduct.file_path}`} alt={item.product_name} className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    <div className="w-full h-full flex items-center justify-center"><ImageIcon size={20} className="text-zinc-400" /></div>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-xs font-bold truncate">{item.product_name}</p>
+                                                                <div className="flex gap-2 mt-0.5">
+                                                                    <span className="text-[10px] font-black text-blue-600 uppercase">{item.quantity} UNIT</span>
+                                                                    <span className="text-[10px] font-black text-zinc-400 uppercase italic">/ {item.action_type}</span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-right shrink-0">
+                                                                <p className={`text-xs font-bold ${isRetur ? 'text-red-500' : 'text-green-600'}`}>
+                                                                    {isRetur ? '-' : '+'}{new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Math.abs(displayValue))}
+                                                                </p>
+                                                                <p className="text-[10px] font-semibold text-zinc-500 dark:text-zinc-400 mt-0.5">
+                                                                    @ {new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(unitPrice)}
+                                                                </p>
+                                                            </div>
+                                                            <button onClick={() => removeFromCart(idx)} className="p-2 text-red-500">
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })}
+
+                                                {/* Grand Total */}
+                                                {cart.length > 0 && (
+                                                    <div className={`p-4 rounded-2xl border-2 mt-4 ${(() => {
+                                                        const total = cart.reduce((sum, item) => {
+                                                            const cartProduct = products.find(p => p.id === item.product_id);
+                                                            const unitPrice = item.unit_price ?? cartProduct?.price ?? 0;
+                                                            const itemTotal = unitPrice * item.quantity;
+                                                            const isNegative = item.action_type === 'retur' || item.action_type === 'returned';
+                                                            return sum + (isNegative ? -itemTotal : itemTotal);
+                                                        }, 0);
+                                                        return total >= 0
+                                                            ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700'
+                                                            : 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700';
+                                                    })()}`}>
+                                                        <p className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-tight mb-2">Grand Total</p>
+                                                        <p className={`text-lg font-black ${(() => {
+                                                            const total = cart.reduce((sum, item) => {
+                                                                const cartProduct = products.find(p => p.id === item.product_id);
+                                                                const unitPrice = item.unit_price ?? cartProduct?.price ?? 0;
+                                                                const itemTotal = unitPrice * item.quantity;
+                                                                const isNegative = item.action_type === 'retur' || item.action_type === 'returned';
+                                                                return sum + (isNegative ? -itemTotal : itemTotal);
+                                                            }, 0);
+                                                            return total >= 0 ? 'text-green-700 dark:text-green-100' : 'text-red-700 dark:text-red-100';
+                                                        })()}`}>
+                                                            {(() => {
+                                                                const total = cart.reduce((sum, item) => {
+                                                                    const cartProduct = products.find(p => p.id === item.product_id);
+                                                                    const unitPrice = item.unit_price ?? cartProduct?.price ?? 0;
+                                                                    const itemTotal = unitPrice * item.quantity;
+                                                                    const isNegative = item.action_type === 'retur' || item.action_type === 'returned';
+                                                                    return sum + (isNegative ? -itemTotal : itemTotal);
+                                                                }, 0);
+                                                                return (total >= 0 ? '+' : '') + new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(total);
+                                                            })()}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="relative py-0 flex flex-col items-center justify-center overflow-hidden">
+                                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 bg-orange-500/10 blur-[80px] rounded-full pointer-events-none" />
+
+                                        <div className="relative flex flex-col items-center gap-4">
+                                            <div className="flex items-center gap-3 w-full">
+                                                <div className="h-px w-8 bg-linear-to-r from-transparent to-orange-500/50" />
+                                                <span className="text-[10px] font-black text-orange-500 tracking-[0.3em] uppercase whitespace-nowrap">
+                                                    Ambil foto terlebih dahulu
+                                                </span>
+                                                <div className="h-px w-8 bg-linear-to-l from-transparent to-orange-500/50" />
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
+                                )
+                            ) : null}
+                                </>
                             )}
                         </>
                     )}
                 </div>
 
-                {cart.length > 0 && (
+                {canSubmit && (
                     <div className="p-6 border-t border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-950">
                         <button
                             onClick={onSubmit}
-                            disabled={processing || isCompressing || !photo}
+                            disabled={processing || isCompressing || !canSubmit}
                             className="w-full py-4 bg-linear-to-r from-blue-600 to-blue-700 text-white font-bold rounded-2xl shadow-xl shadow-blue-500/30 flex items-center justify-center gap-2 active:scale-95 transition-transform"
                         >
                             {processing || isCompressing ? <Loader2 className="animate-spin" /> : 'KIRIM LAPORAN SEKARANG'}

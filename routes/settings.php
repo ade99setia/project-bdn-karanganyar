@@ -4,6 +4,7 @@ use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\TwoFactorAuthenticationController;
 use App\Http\Controllers\Settings\UserManagementController;
+use App\Http\Controllers\Settings\ProductManagementController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -52,4 +53,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('settings.workday.update');
     Route::put('settings/users/config', [UserManagementController::class, 'updateUserSettings'])
         ->name('settings.users.config.update');
+
+    // Product Management Routes
+    Route::get('settings/products', [ProductManagementController::class, 'index'])
+        ->name('settings.products.index');
+    Route::post('settings/products', [ProductManagementController::class, 'store'])
+        ->name('settings.products.store');
+    Route::put('settings/products/{product}', [ProductManagementController::class, 'update'])
+        ->name('settings.products.update');
+    Route::delete('settings/products/{product}', [ProductManagementController::class, 'destroy'])
+        ->name('settings.products.destroy');
 });

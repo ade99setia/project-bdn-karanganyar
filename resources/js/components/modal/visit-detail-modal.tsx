@@ -17,6 +17,8 @@ interface Customer {
 interface ProductPivot {
     quantity: number;
     action_type: string;
+    price?: number;
+    value?: number;
 }
 
 interface Product {
@@ -57,6 +59,14 @@ const VisitDetailModal = ({
     onPreviewImage, 
     formatTime    
 }: VisitDetailModalProps) => {
+    const formatCurrency = (value: number) => new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        maximumFractionDigits: 0,
+    }).format(value);
+
+    const isNegativeAction = (actionType: string) => actionType === 'retur' || actionType === 'returned';
+
     
     // Helper untuk mempersingkat pemanggilan preview image
     const handleImageClick = (filePath: string) => {
@@ -192,6 +202,13 @@ const VisitDetailModal = ({
                                         <div className="space-y-2">
                                             {visit.products.map((prod) => {
                                                 const masterProd = products.find(p => p.id === prod.id);
+                                                const unitPrice = prod.pivot.price ?? 0;
+                                                const fallbackValue = unitPrice * prod.pivot.quantity;
+                                                const computedValue = typeof prod.pivot.value === 'number'
+                                                    ? prod.pivot.value
+                                                    : (isNegativeAction(prod.pivot.action_type) ? -Math.abs(fallbackValue) : Math.abs(fallbackValue));
+                                                const isNegative = computedValue < 0;
+
                                                 return (
                                                     <div key={prod.id} className="flex items-center justify-between p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm">
                                                         <div className="flex items-center gap-3">
@@ -210,15 +227,44 @@ const VisitDetailModal = ({
                                                             <div>
                                                                 <p className="text-sm font-bold text-zinc-800 dark:text-zinc-200">{prod.name}</p>
                                                                 <p className="text-[10px] text-zinc-500 font-mono">{prod.sku}</p>
+                                                                <p className="text-[10px] text-zinc-500 mt-1">
+                                                                    @ {formatCurrency(unitPrice)}
+                                                                </p>
                                                             </div>
                                                         </div>
                                                         <div className="text-right">
                                                             <span className="block text-sm font-black text-blue-600 dark:text-blue-400">{prod.pivot.quantity} Unit</span>
                                                             <span className="block text-[10px] font-bold uppercase text-zinc-400 tracking-wide">{prod.pivot.action_type}</span>
+                                                            <span className={`block text-[11px] font-black mt-1 ${isNegative ? 'text-red-500' : 'text-green-600'}`}>
+                                                                {isNegative ? '-' : '+'}{formatCurrency(Math.abs(computedValue))}
+                                                            </span>
                                                         </div>
                                                     </div>
                                                 );
                                             })}
+
+                                            {(() => {
+                                                const grandTotal = visit.products.reduce((sum, prod) => {
+                                                    const unitPrice = prod.pivot.price ?? 0;
+                                                    const fallbackValue = unitPrice * prod.pivot.quantity;
+                                                    const computedValue = typeof prod.pivot.value === 'number'
+                                                        ? prod.pivot.value
+                                                        : (isNegativeAction(prod.pivot.action_type) ? -Math.abs(fallbackValue) : Math.abs(fallbackValue));
+                                                    return sum + computedValue;
+                                                }, 0);
+
+                                                return (
+                                                    <div className={`p-3 rounded-xl border-2 mt-3 ${grandTotal >= 0
+                                                        ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700'
+                                                        : 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700'
+                                                        }`}>
+                                                        <p className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wide">Grand Total</p>
+                                                        <p className={`text-base font-black mt-1 ${grandTotal >= 0 ? 'text-green-700 dark:text-green-100' : 'text-red-700 dark:text-red-100'}`}>
+                                                            {grandTotal >= 0 ? '+' : '-'}{formatCurrency(Math.abs(grandTotal))}
+                                                        </p>
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
                                     </div>
                                 )}

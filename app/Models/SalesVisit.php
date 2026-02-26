@@ -61,7 +61,7 @@ class SalesVisit extends Model
     {
         // return $this->hasMany(SalesVisitProduct::class);
         return $this->belongsToMany(Product::class, 'sales_visit_products')
-            ->withPivot('quantity', 'action_type', 'note')
+            ->withPivot('quantity', 'price', 'value', 'action_type', 'note')
             ->withTimestamps();
     }
 

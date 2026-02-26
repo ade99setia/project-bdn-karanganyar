@@ -40,7 +40,7 @@ class DashboardController extends Controller
             ->get();
 
         $products = Product::where('is_active', true)
-            ->select('id', 'name', 'file_path', 'sku', 'category')
+            ->select('id', 'name', 'file_path', 'sku', 'category', 'price')
             ->orderBy('name')
             ->get();
 

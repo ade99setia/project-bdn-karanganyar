@@ -1,8 +1,7 @@
 import { router } from '@inertiajs/react';
 import axios from 'axios';
 import imageCompression from 'browser-image-compression';
-import type { ChangeEvent } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import AlertModal from '@/components/modal/alert-modal';
 import VisitInputModal from '@/components/modal/visit-input-modal';
 
@@ -12,7 +11,6 @@ interface Customer {
     address: string;
     distance?: number;
     phone?: string;
-    email?: string;
     notes?: string;
 }
 
@@ -22,6 +20,7 @@ interface Product {
     file_path?: string;
     sku: string;
     category?: string;
+    price?: number;
 }
 
 interface CartItem {
@@ -29,6 +28,7 @@ interface CartItem {
     quantity: number;
     action_type: string;
     product_name?: string;
+    unit_price?: number;
 }
 
 interface LocationPosition {
@@ -79,9 +79,8 @@ export default function VisitInputModalContainer({
     const [manualCustomerName, setManualCustomerName] = useState('');
     const [manualCustomerNote, setManualCustomerNote] = useState('');
     const [manualCustomerPhone, setManualCustomerPhone] = useState('');
-    const [manualCustomerEmail, setManualCustomerEmail] = useState('');
     const [showContactModal, setShowContactModal] = useState(false);
-    const [tempContactData, setTempContactData] = useState({ phone: '', email: '' });
+    const [tempContactData, setTempContactData] = useState({ name: '', notes: '', phone: '' });
     const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
 
     const [visitType, setVisitType] = useState('visit');
@@ -89,11 +88,16 @@ export default function VisitInputModalContainer({
     const [photo, setPhoto] = useState<File | null>(null);
     const [photoPreview, setPhotoPreview] = useState<string | null>(null);
     const [isCompressing, setIsCompressing] = useState(false);
+    const [isCameraOpen, setIsCameraOpen] = useState(false);
+    const [isStartingCamera, setIsStartingCamera] = useState(false);
+    const [cameraError, setCameraError] = useState<string | null>(null);
+    const videoRef = useRef<HTMLVideoElement | null>(null);
+    const streamRef = useRef<MediaStream | null>(null);
 
     const [cart, setCart] = useState<CartItem[]>([]);
     const [tempProdId, setTempProdId] = useState<string>('');
     const [tempQty, setTempQty] = useState<number>(0);
-    const [tempAction, setTempAction] = useState<string>('sold');
+    const [tempAction, setTempAction] = useState<string>('terjual');
     const [searchQuery, setSearchQuery] = useState('');
     const [showResults, setShowResults] = useState(false);
 
@@ -156,12 +160,68 @@ export default function VisitInputModalContainer({
 
     const getXsrfToken = () => decodeURIComponent(document.cookie.split('; ').find(row => row.startsWith('XSRF-TOKEN='))?.split('=')[1] || '');
 
-    const handlePhotoChange = async (e: ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+    const stopCamera = () => {
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach((track) => track.stop());
+            streamRef.current = null;
+        }
+
+        if (videoRef.current) {
+            videoRef.current.srcObject = null;
+        }
+
+        setIsCameraOpen(false);
+    };
+
+    const startCamera = async () => {
+        if (isStartingCamera || isCompressing) return;
+
+        setIsStartingCamera(true);
+        setCameraError(null);
+
+        try {
+            stopCamera();
+
+            const mediaStream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: { ideal: 'environment' },
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                },
+                audio: false,
+            });
+
+            streamRef.current = mediaStream;
+            setIsCameraOpen(true);
+        } catch {
+            setCameraError('Kamera tidak bisa diakses. Cek izin kamera pada browser/perangkat.');
+            stopCamera();
+        } finally {
+            setIsStartingCamera(false);
+        }
+    };
+
+    useEffect(() => {
+        if (!isCameraOpen || !streamRef.current || !videoRef.current) return;
+
+        const videoElement = videoRef.current;
+        videoElement.srcObject = streamRef.current;
+
+        void videoElement.play().catch(() => {
+            setCameraError('Preview kamera tidak bisa ditampilkan. Coba tutup lalu buka kamera lagi.');
+        });
+    }, [isCameraOpen]);
+
+    const processPhotoFile = async (file: File) => {
         setIsCompressing(true);
         try {
-            const compressed = await imageCompression(file, { maxSizeMB: 0.6, maxWidthOrHeight: 1400, fileType: 'image/webp' });
+            const compressed = await imageCompression(file, {
+                maxSizeMB: 0.35,
+                maxWidthOrHeight: 1024,
+                fileType: 'image/webp',
+                initialQuality: 0.72,
+                useWebWorker: false,
+            });
             const finalFile = new File([compressed], `visit-${Date.now()}.webp`, { type: 'image/webp' });
             setPhoto(finalFile);
         } catch {
@@ -175,6 +235,60 @@ export default function VisitInputModalContainer({
         }
     };
 
+    const handlePhotoCapture = (file: File) => {
+        void processPhotoFile(file);
+    };
+
+    const handleCaptureFromCamera = () => {
+        const video = videoRef.current;
+        if (!video) return;
+
+        const sourceWidth = video.videoWidth || 1280;
+        const sourceHeight = video.videoHeight || 720;
+        const maxWidth = 1280;
+        const targetWidth = Math.min(sourceWidth, maxWidth);
+        const targetHeight = Math.round((sourceHeight / sourceWidth) * targetWidth);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            setCameraError('Gagal memproses hasil kamera. Coba lagi.');
+            return;
+        }
+
+        ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+
+        canvas.toBlob((blob) => {
+            if (!blob) {
+                setCameraError('Gagal mengambil foto dari kamera. Coba ulangi.');
+                return;
+            }
+
+            const file = new File([blob], `visit-${Date.now()}.webp`, { type: 'image/webp' });
+            handlePhotoCapture(file);
+            stopCamera();
+        }, 'image/webp', 0.78);
+    };
+
+    useEffect(() => {
+        if (isOpen) return;
+
+        setCameraError(null);
+        stopCamera();
+    }, [isOpen]);
+
+    useEffect(() => {
+        return () => {
+            if (streamRef.current) {
+                streamRef.current.getTracks().forEach((track) => track.stop());
+                streamRef.current = null;
+            }
+        };
+    }, []);
+
     const addToCart = () => {
         if (!tempProdId) return;
         const selectedProduct = products.find(p => p.id === Number(tempProdId));
@@ -185,6 +299,9 @@ export default function VisitInputModalContainer({
         if (existingIndex >= 0) {
             const newCart = [...cart];
             newCart[existingIndex].quantity += tempQty;
+            if (!newCart[existingIndex].unit_price) {
+                newCart[existingIndex].unit_price = selectedProduct.price || 0;
+            }
             setCart(newCart);
         } else {
             setCart([...cart, {
@@ -192,11 +309,14 @@ export default function VisitInputModalContainer({
                 quantity: tempQty,
                 action_type: tempAction,
                 product_name: selectedProduct.name,
+                unit_price: selectedProduct.price || 0,
             }]);
         }
         setTempProdId('');
         setTempQty(1);
     };
+
+    const isNegativeAction = (actionType: string) => actionType === 'retur' || actionType === 'returned';
 
     const removeFromCart = (index: number) => {
         setCart(cart.filter((_, i) => i !== index));
@@ -205,17 +325,25 @@ export default function VisitInputModalContainer({
     const handleSelectCustomer = (cust: Customer) => {
         setSelectedCustomerId(cust.id);
 
-        if (!cust.phone || !cust.email) {
-            setTempContactData({
-                phone: cust.phone || '',
-                email: cust.email || '',
-            });
-            setShowContactModal(true);
-        }
+        setTempContactData({
+            name: cust.name || '',
+            notes: cust.notes || '',
+            phone: cust.phone || '',
+        });
+        setShowContactModal(true);
     };
 
     const handleSaveContactUpdate = () => {
-        const { phone, email } = tempContactData;
+        const { name, notes, phone } = tempContactData;
+
+        if (!name.trim()) {
+            showAlert(
+                'Nama Pelanggan Wajib Diisi',
+                'Silakan isi nama pelanggan / toko terlebih dahulu.',
+                'error'
+            );
+            return;
+        }
 
         if (phone) {
             const phoneRegex = /^628\d{8,11}$/;
@@ -230,29 +358,17 @@ export default function VisitInputModalContainer({
             }
         }
 
-        if (email) {
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-            if (!emailRegex.test(email)) {
-                showAlert(
-                    'Format Email Tidak Valid',
-                    'Format email tidak valid! (contoh: example@gmail.com)',
-                    'error'
-                );
-                return;
-            }
-        }
-
         router.patch(`/sales/customers/${selectedCustomerId}/update-contact`, {
+            name: name.trim(),
+            notes: notes.trim() || null,
             phone: phone,
-            email: email,
         }, {
             preserveScroll: true,
             preserveState: true,
             onSuccess: () => {
                 setNearbyCustomers(prev => prev.map(cust =>
                     cust.id === selectedCustomerId
-                        ? { ...cust, phone: phone, email: email }
+                        ? { ...cust, name: name.trim(), notes: notes.trim(), phone: phone }
                         : cust
                 ));
 
@@ -268,6 +384,21 @@ export default function VisitInputModalContainer({
         });
     };
 
+    const handleVisitTypeChange = (nextVisitType: string) => {
+        const isLocked = visitType === 'kunjungan' || visitType === 'pengiriman';
+
+        if (isLocked && nextVisitType !== visitType) {
+            showAlert(
+                'Kategori Sudah Terkunci',
+                `Anda sudah memilih kategori ${visitType}. Tutup form lalu buat laporan baru jika ingin ganti kategori.`,
+                'warning'
+            );
+            return;
+        }
+
+        setVisitType(nextVisitType);
+    };
+
     const resetFormState = () => {
         setDescription('');
         setPhoto(null);
@@ -280,6 +411,27 @@ export default function VisitInputModalContainer({
     };
 
     const submitVisitReport = async () => {
+        const isKunjungan = visitType === 'kunjungan';
+        const isPengiriman = visitType === 'pengiriman';
+
+        if (!isKunjungan && !isPengiriman) {
+            showAlert(
+                'Jenis Aktivitas Wajib Dipilih',
+                'Silakan pilih kategori aktivitas terlebih dahulu.',
+                'error'
+            );
+            return;
+        }
+
+        if (!description.trim()) {
+            showAlert(
+                'Catatan Kunjungan Wajib Diisi',
+                'Silakan isi catatan kunjungan terlebih dahulu.',
+                'error'
+            );
+            return;
+        }
+
         if (!photo) {
             showAlert(
                 'Foto Wajib Diunggah',
@@ -288,6 +440,16 @@ export default function VisitInputModalContainer({
             );
             return;
         }
+
+        if (isPengiriman && cart.length === 0) {
+            showAlert(
+                'Produk Wajib Diisi',
+                'Untuk kategori pengiriman, tambahkan minimal 1 produk terlebih dahulu.',
+                'error'
+            );
+            return;
+        }
+
         setProcessing(true);
         const pos = await getVerifiedLocation();
 
@@ -319,20 +481,6 @@ export default function VisitInputModalContainer({
                 }
             }
 
-            if (manualCustomerEmail) {
-                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-                if (!emailRegex.test(manualCustomerEmail)) {
-                    showAlert(
-                        'Format Email Tidak Valid',
-                        'Format email tidak valid! (contoh: example@gmail.com)',
-                        'error'
-                    );
-                    setProcessing(false);
-                    return;
-                }
-            }
-
             router.post('/sales/visits', {
                 activity_type: visitType,
                 description,
@@ -344,13 +492,14 @@ export default function VisitInputModalContainer({
                     product_id: item.product_id,
                     quantity: item.quantity,
                     action_type: item.action_type,
+                    price: item.unit_price || 0,
+                    value: (isNegativeAction(item.action_type) ? -1 : 1) * (item.unit_price || 0) * item.quantity,
                 })),
                 customer_mode: customerMode,
                 customer_id: selectedCustomerId,
                 customer_name: manualCustomerName,
                 customer_note: manualCustomerNote,
                 customer_phone: manualCustomerPhone,
-                customer_email: manualCustomerEmail,
             }, {
                 forceFormData: true,
                 onSuccess: () => {
@@ -392,15 +541,21 @@ export default function VisitInputModalContainer({
                 setManualCustomerNote={setManualCustomerNote}
                 manualCustomerPhone={manualCustomerPhone}
                 setManualCustomerPhone={setManualCustomerPhone}
-                manualCustomerEmail={manualCustomerEmail}
-                setManualCustomerEmail={setManualCustomerEmail}
                 visitType={visitType}
-                setVisitType={setVisitType}
+                setVisitType={handleVisitTypeChange}
                 description={description}
                 setDescription={setDescription}
-                onPhotoChange={handlePhotoChange}
                 photo={photo}
                 photoPreview={photoPreview}
+                isCameraOpen={isCameraOpen}
+                isStartingCamera={isStartingCamera}
+                cameraError={cameraError}
+                videoRef={videoRef}
+                onStartCamera={() => {
+                    void startCamera();
+                }}
+                onCloseCamera={stopCamera}
+                onCaptureFromCamera={handleCaptureFromCamera}
                 products={products}
                 tempProdId={tempProdId}
                 setTempProdId={setTempProdId}
