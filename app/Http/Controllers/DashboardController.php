@@ -21,10 +21,18 @@ class DashboardController extends Controller
             ->select('descriptor', 'photo_path')
             ->first();
 
+        if (!$user->is_active) {
+            return redirect()->route('login')->with('error', 'Akun Anda tidak aktif. Silakan hubungi administrator.');
+        }
+
+        if (!$user->phone) {
+            return redirect()->route('profile.edit')->with('warning', 'Silakan lengkapi nomor telepon Anda terlebih dahulu di halaman profil sebelum mengakses dashboard.');
+        }
+
         if (!$user->avatar) {
             return redirect()->route('profile.edit')->with('warning', 'Silakan unggah foto profil Anda terlebih dahulu di halaman profil sebelum mengakses dashboard.');
         }
-            
+
         if (!$userFaceDescriptor) {
             return redirect()->route('profile.edit')->with('warning', 'Silakan unggah data wajah Anda terlebih dahulu di halaman profil sebelum mengakses dashboard.');
         }

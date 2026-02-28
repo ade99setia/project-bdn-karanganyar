@@ -7,6 +7,7 @@ import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileCo
 import DeleteUser from '@/components/delete-user';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
+import AlertModal from '@/components/modal/alert-modal';
 import AvatarUploadModal from '@/components/modal/avatar-upload-modal';
 import FaceEnrollmentModal from '@/components/modal/face-enrollment-modal';
 import { Button } from '@/components/ui/button';
@@ -39,6 +40,40 @@ export default function Profile({
 
     const [isFaceModalOpen, setIsFaceModalOpen] = useState(false);
     const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+    interface AlertConfig {
+        isOpen: boolean;
+        title: string;
+        message: string | React.ReactNode | null;
+        type: 'success' | 'error' | 'warning' | 'info';
+        onConfirm: () => void;
+        isFatal: boolean;
+    }
+
+    const [alertConfig, setAlertConfig] = useState<AlertConfig>({
+        isOpen: false,
+        title: '',
+        message: null,
+        type: 'info',
+        onConfirm: () => setAlertConfig((prev) => ({ ...prev, isOpen: false })),
+        isFatal: false,
+    });
+
+    const showAlert = (
+        title: string,
+        message: string | React.ReactNode,
+        type: 'success' | 'error' | 'warning' | 'info',
+        onConfirm?: () => void,
+        isFatal = false
+    ) => {
+        setAlertConfig({
+            isOpen: true,
+            title,
+            message,
+            type,
+            onConfirm: onConfirm || (() => setAlertConfig((prev: AlertConfig) => ({ ...prev, isOpen: false }))),
+            isFatal,
+        });
+    };
 
     const Layout = Capacitor.isNativePlatform() ? AppLayoutMobile : AppLayout;
 
@@ -49,7 +84,7 @@ export default function Profile({
             <h1 className="sr-only">Profile Settings</h1>
 
             <SettingsLayout>
-                <div className="space-y-6">
+                <div className="space-y-6 md:max-w-2xl">
                     {/* BAGIAN 1: PROFILE STANDARD */}
                     <Heading
                         variant="small"
@@ -131,6 +166,38 @@ export default function Profile({
                                     <InputError className="mt-2" message={errors.email} />
                                 </div>
 
+                                <div className="grid gap-2">
+                                    <Label htmlFor="phone">Phone number</Label>
+                                    <Input
+                                        id="phone"
+                                        type="tel"
+                                        className="mt-1 block w-full"
+                                        defaultValue={typeof auth.user.phone === 'string' || typeof auth.user.phone === 'number' ? auth.user.phone : ''}
+                                        name="phone"
+                                        autoComplete="tel"
+                                        placeholder='628XXXXXXXXXX'
+                                        onBlur={e => {
+                                            const phone = e.target.value;
+                                            if (phone) {
+                                                const phoneRegex = /^628\d{8,11}$/;
+                                                if (!phoneRegex.test(phone)) {
+                                                    if (typeof window !== 'undefined' && showAlert) {
+                                                        showAlert(
+                                                            'Nomor Telepon Tidak Valid',
+                                                            'Nomor telepon harus diawali dengan "628" dan memiliki panjang 11-14 digit.',
+                                                            'error'
+                                                        );
+                                                    } else {
+                                                        alert('Nomor telepon harus diawali dengan "628" dan memiliki panjang 11-14 digit.');
+                                                    }
+                                                    e.target.focus();
+                                                }
+                                            }
+                                        }}
+                                    />
+                                    <InputError className="mt-2" message={errors.phone} />
+                                </div>
+
                                 <div className="flex items-center gap-4">
                                     <Button disabled={processing}>Save</Button>
                                     <Transition show={recentlySuccessful}>
@@ -205,6 +272,16 @@ export default function Profile({
                     onUploadSuccess={() => {
                         router.reload({ only: ['auth'] });
                     }}
+                />
+
+                <AlertModal
+                    isOpen={!!alertConfig?.isOpen}
+                    onClose={() => setAlertConfig((prev: AlertConfig) => ({ ...prev, isOpen: false }))}
+                    title={alertConfig?.title ?? ''}
+                    message={alertConfig?.message ?? ''}
+                    type={alertConfig?.type}
+                    onPrimaryClick={alertConfig?.onConfirm}
+                    disableBackdropClick={!!alertConfig?.isFatal}
                 />
 
             </SettingsLayout>

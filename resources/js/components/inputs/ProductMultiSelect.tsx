@@ -25,6 +25,14 @@ export default function ProductMultiSelect({ items, value, onChange, label, plac
     const [showResults, setShowResults] = useState(false);
     const rootRef = useRef<HTMLDivElement | null>(null);
 
+    const resolveImageSrc = (path?: string | null) => {
+        if (!path) return null;
+        if (path.startsWith('http://') || path.startsWith('https://')) return path;
+        if (path.startsWith('/')) return path;
+        if (path.startsWith('storage/')) return `/${path}`;
+        return `/storage/${path}`;
+    };
+
     useEffect(() => {
         const onDocClick = (e: MouseEvent) => {
             if (!rootRef.current) return;
@@ -77,7 +85,18 @@ export default function ProductMultiSelect({ items, value, onChange, label, plac
                                 <div key={id} className="flex items-center gap-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-2 py-1 rounded-xl text-xs font-semibold max-w-xs">
                                     <div className="w-6 h-6 rounded-md bg-zinc-100 dark:bg-zinc-800 overflow-hidden shrink-0 border border-zinc-200 dark:border-zinc-700">
                                         {item.image ? (
-                                            <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+                                            (() => {
+                                                const src = resolveImageSrc(item.image);
+                                                return (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => { e.stopPropagation(); if (onPreviewImage) onPreviewImage(String(src)); }}
+                                                        className="w-full h-full block cursor-pointer"
+                                                    >
+                                                        <img src={String(src)} alt={item.title} className="w-full h-full object-cover" />
+                                                    </button>
+                                                );
+                                            })()
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center"><ImageIcon size={14} className="text-zinc-400" /></div>
                                         )}
@@ -117,15 +136,15 @@ export default function ProductMultiSelect({ items, value, onChange, label, plac
                                 onClick={() => add(i.id)}
                                 className="w-full flex items-center gap-3 p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-colors text-left group"
                             >
-                                <div className="w-10 h-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 overflow-hidden shrink-0 border border-zinc-200 dark:border-zinc-700">
+                                    <div className="w-10 h-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 overflow-hidden shrink-0 border border-zinc-200 dark:border-zinc-700">
                                     {i.image ? (
                                         <div
                                             role="button"
                                             tabIndex={0}
-                                            onClick={(e) => { e.stopPropagation(); if (onPreviewImage) onPreviewImage(i.image!); }}
+                                            onClick={(e) => { e.stopPropagation(); if (onPreviewImage) onPreviewImage(String(resolveImageSrc(i.image))); }}
                                             className="w-full h-full block cursor-pointer group"
                                         >
-                                            <img src={i.image} alt={i.title} className="w-full h-full object-cover group-hover:brightness-110 transition-all" />
+                                            <img src={String(resolveImageSrc(i.image))} alt={i.title} className="w-full h-full object-cover group-hover:brightness-110 transition-all" />
                                         </div>
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center"><ImageIcon size={18} className="text-zinc-400" /></div>

@@ -217,7 +217,7 @@ export default function ProductSettings() {
                                 <div>
                                     <h1 className="flex items-center gap-3 text-2xl font-bold text-gray-900 dark:text-white md:text-3xl">
                                         <Package className="h-8 w-8 text-indigo-600 md:h-10 md:w-10" />
-                                        Daftar Produk
+                                        Product Management
                                     </h1>
                                     <p className="mt-2 text-gray-600 dark:text-gray-400">Kelola data produk di sistem (CRUD dengan upload gambar).</p>
                                 </div>

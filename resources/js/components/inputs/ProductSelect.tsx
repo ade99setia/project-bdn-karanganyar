@@ -71,12 +71,18 @@ export default function ProductSelect({ products, value, onChange, placeholder =
                                 <>
                                     <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 shadow-md border-2 border-indigo-200 dark:border-indigo-800">
                                         {selected?.file_path ? (
-                                            <button
-                                                onClick={() => onPreviewImage && onPreviewImage(`/storage/${selected.file_path}`)}
-                                                className="w-full h-full block cursor-pointer group"
-                                            >
-                                                <img src={`/storage/${selected.file_path}`} alt={selected.name} className="w-full h-full object-cover group-hover:brightness-110 transition-all" />
-                                            </button>
+                                            (() => {
+                                                const src = `/storage/${selected.file_path}`;
+                                                return (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => onPreviewImage && onPreviewImage(String(src))}
+                                                        className="w-full h-full block cursor-pointer group"
+                                                    >
+                                                        <img src={src} alt={selected.name} className="w-full h-full object-cover group-hover:brightness-110 transition-all" />
+                                                    </button>
+                                                );
+                                            })()
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center bg-zinc-200 dark:bg-zinc-700"><ImageIcon size={24} className="text-zinc-400" /></div>
                                         )}
@@ -84,7 +90,7 @@ export default function ProductSelect({ products, value, onChange, placeholder =
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-bold text-indigo-900 dark:text-indigo-100 wrap-break-word whitespace-normal">{selected?.name}</p>
                                         <p className="text-xs text-indigo-700 dark:text-indigo-300 font-mono">{selected?.sku}</p>
-                                        <p className="text-[10px] font-semibold text-indigo-500 uppercase">Stok: {Math.max(0, Number((typeof selectedStock !== 'undefined' && selectedStock !== null) ? selectedStock : (selected?.stock_quantity ?? 0)) )}</p>
+                                        <p className="text-[10px] font-semibold text-indigo-500 uppercase">Stok: {Math.max(0, Number((typeof selectedStock !== 'undefined' && selectedStock !== null) ? selectedStock : (selected?.stock_quantity ?? 0)))}</p>
                                     </div>
                                     <button
                                         type="button"
@@ -130,19 +136,18 @@ export default function ProductSelect({ products, value, onChange, placeholder =
                                 >
                                     <div className="w-12 h-12 rounded-lg bg-zinc-100 dark:bg-zinc-800 overflow-hidden shrink-0 border border-zinc-200 dark:border-zinc-700">
                                         {p.file_path ? (
-                                            <div
-                                                role="button"
-                                                tabIndex={0}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    if (onPreviewImage) {
-                                                        onPreviewImage(`/storage/${p.file_path}`);
-                                                    }
-                                                }}
-                                                className="w-full h-full block cursor-pointer group"
-                                            >
-                                                <img src={`/storage/${p.file_path}`} alt={p.name} className="w-full h-full object-cover group-hover:brightness-110 transition-all" />
-                                            </div>
+                                            (() => {
+                                                const src = `/storage/${p.file_path}`;
+                                                return (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => { e.stopPropagation(); if (onPreviewImage) onPreviewImage(String(src)); }}
+                                                        className="w-full h-full block cursor-pointer group"
+                                                    >
+                                                        <img src={src} alt={p.name} className="w-full h-full object-cover group-hover:brightness-110 transition-all" />
+                                                    </button>
+                                                );
+                                            })()
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center"><ImageIcon size={20} className="text-zinc-400" /></div>
                                         )}
@@ -160,8 +165,8 @@ export default function ProductSelect({ products, value, onChange, placeholder =
                             p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                             p.sku.toLowerCase().includes(searchQuery.toLowerCase())
                         ).length === 0 && (
-                            <div className="p-4 text-center text-zinc-500 text-xs italic">Produk tidak ditemukan...</div>
-                        )}
+                                <div className="p-4 text-center text-zinc-500 text-xs italic">Produk tidak ditemukan...</div>
+                            )}
                     </motion.div>
                 )}
             </AnimatePresence>

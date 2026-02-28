@@ -10,6 +10,8 @@ import UserSelect from '@/components/inputs/UserSelect';
 import WerehouseMultiSelect from '@/components/inputs/WerehouseMultiSelect';
 import WerehouseSelect from '@/components/inputs/WerehouseSelect';
 import AlertModal from '@/components/modal/alert-modal';
+import ConfirmStockAdjustModal from '@/components/modal/confirm-stock-adjust-modal';
+import ImagePreviewModal from '@/components/modal/image-preview-modal';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 import type { BreadcrumbItem } from '@/types';
@@ -34,6 +36,8 @@ interface SalesUser {
     id: number;
     name: string;
     warehouse_id: number | null;
+    phone?: string | null;
+    avatar?: string | null;
 }
 
 interface SalesStockSummaryRow {
@@ -42,17 +46,20 @@ interface SalesStockSummaryRow {
     user: {
         id: number | null;
         name: string | null;
+        avatar?: string | null;
     };
     warehouse: {
         id: number | null;
         name: string | null;
         code: string | null;
+        file_path?: string | null;
     };
     product: {
         id: number | null;
         name: string | null;
         sku: string | null;
         category?: string | null;
+        file_path?: string | null;
     };
 }
 
@@ -79,6 +86,16 @@ interface StockMovementRow {
     product: Pick<Product, 'id' | 'name' | 'sku'>;
     warehouse: Warehouse;
     sales_visit?: SalesVisitRef | null;
+    user?: {
+        id: number;
+        name: string;
+        phone?: string | null;
+    } | null;
+    created_by?: {
+        id: number;
+        name: string;
+        phone?: string | null;
+    } | null;
 }
 
 interface Pagination<T> {
@@ -131,6 +148,10 @@ export default function StockistSettings() {
     const [warehouseEditFile, setWarehouseEditFile] = useState<File | null>(null);
     const [stockAdjustLoading, setStockAdjustLoading] = useState(false);
     const [stockAdjustProgress, setStockAdjustProgress] = useState<{ current: number; total: number } | null>(null);
+    const [confirmPreviewOpen, setConfirmPreviewOpen] = useState(false);
+
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+    const [previewUrl, setPreviewUrl] = useState('');
 
     const [alertConfig, setAlertConfig] = useState({ isOpen: false, title: '', message: '', type: 'info' as 'success' | 'error' | 'warning' | 'info' });
     const showAlert = (title: string, message: React.ReactNode, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
@@ -387,7 +408,9 @@ export default function StockistSettings() {
                             msg += `: ${errorObj.message}`;
                         }
                     }
-                    alert(msg);
+                    setStockAdjustLoading(false);
+                    setStockAdjustProgress(null);
+                    return showAlert('Gagal', msg, 'error');
                 }
             }
 
@@ -403,7 +426,7 @@ export default function StockistSettings() {
             setStockAdjustLoading(false);
             setStockAdjustProgress(null);
 
-            showAlert('Berhasil', 'Semua baris penyesuaian berhasil disimpan.', 'success');
+            showAlert('Berhasil', 'Data berhasil disimpan.', 'success');
             router.reload({ only: ['stocks', 'movements', 'salesStockSummaries'] });
             return;
         }
@@ -431,7 +454,6 @@ export default function StockistSettings() {
                     reference: '',
                     note: '',
                 }));
-                showAlert('Berhasil', 'Penyesuaian stok berhasil disimpan.', 'success');
                 router.reload({ only: ['stocks', 'movements', 'salesStockSummaries'] });
             },
             onFinish: () => setStockAdjustLoading(false),
@@ -483,9 +505,10 @@ export default function StockistSettings() {
                     )}
 
                     <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                        <h1 className="flex items-center gap-2 text-2xl font-bold text-gray-900 dark:text-white">
-                            <WarehouseIcon className="h-7 w-7 text-indigo-600" />
-                            Stockist (Gudang & Kontrol Stok)
+
+                        <h1 className="flex items-center gap-3 text-2xl font-bold text-gray-900 dark:text-white md:text-3xl">
+                            <WarehouseIcon className="h-8 w-8 text-indigo-600 md:h-10 md:w-10" />
+                            Stockist Management
                         </h1>
                         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                             Monitor stok per gudang dan audit pergerakan stok dari flow pengiriman / retur.
@@ -502,7 +525,7 @@ export default function StockistSettings() {
                                     value={warehouseForm.name}
                                     onChange={(e) => setWarehouseForm((prev) => ({ ...prev, name: e.target.value }))}
                                     placeholder="Nama gudang"
-                                    className="w-full rounded-xl border border-gray-300 bg-white pl-3.5 pr-12 py-2.5 text-sm focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:focus:border-indigo-400 dark:focus:ring-indigo-400/30 transition-all duration-200"
+                                    className="w-full rounded-xl border border-gray-300 bg-white h-12 pl-12 pr-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:focus:border-indigo-400 dark:focus:ring-indigo-400/30 transition-all duration-200"
                                 />
                                 <input
                                     ref={createFileInputRef}
@@ -589,7 +612,14 @@ export default function StockistSettings() {
                                                     ) : (
                                                         <div className="mx-auto flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
                                                             {warehouse.file_path ? (
-                                                                <img src={`/storage/${warehouse.file_path}`} alt={warehouse.name} className="h-full w-full object-cover" />
+                                                                <button
+                                                                    type="button"
+                                                                    title="Lihat gambar"
+                                                                    onClick={() => { setPreviewUrl(`/storage/${warehouse.file_path}`); setIsPreviewOpen(true); }}
+                                                                    className="block w-full h-full"
+                                                                >
+                                                                    <img src={`/storage/${warehouse.file_path}`} alt={warehouse.name} className="h-full w-full object-cover cursor-pointer" />
+                                                                </button>
                                                             ) : (
                                                                 <ImageIcon className="h-4 w-4 text-gray-300 dark:text-gray-600" />
                                                             )}
@@ -696,11 +726,12 @@ export default function StockistSettings() {
 
                             <div>
                                 <WerehouseSelect
-                                    items={warehouses.map(w => ({ id: w.id, title: w.name, subtitle: w.code }))}
+                                    items={warehouses.map(w => ({ id: w.id, title: w.name, subtitle: w.code, image: w.file_path ? `/storage/${w.file_path}` : null }))}
                                     value={stockAdjustForm.warehouse_id}
                                     onChange={(id) => setStockAdjustForm((prev) => ({ ...prev, warehouse_id: id }))}
                                     label="Pilih Gudang"
                                     placeholder="Cari gudang..."
+                                    onPreviewImage={(url) => { setPreviewUrl(String(url)); setIsPreviewOpen(true); }}
                                 />
                             </div>
 
@@ -712,7 +743,7 @@ export default function StockistSettings() {
                                     const productsWithStock = (products as Product[]).map((p) => {
                                         let stockForWarehouse: number | null = null;
                                         if (selectedWarehouseId) {
-                                            const match = stocks.data.find(s => Number(s.product.id) === Number(p.id) && Number(s.warehouse.id) === selectedWarehouseId);
+                                            const match = stocks.data.find(s => String(s.product.id) === String(p.id) && String(s.warehouse.id) === String(selectedWarehouseId));
                                             if (match) stockForWarehouse = Number(match.quantity);
                                         }
                                         // Cast to Product & { stock_quantity: number }
@@ -731,7 +762,7 @@ export default function StockistSettings() {
                                             onChange={(id) => setStockAdjustForm((prev) => ({ ...prev, product_id: id }))}
                                             placeholder="Ketik nama atau SKU produk..."
                                             label="Cari Produk"
-                                            onPreviewImage={(url) => window.open(url, '_blank')}
+                                            onPreviewImage={(url) => { setPreviewUrl(String(url)); setIsPreviewOpen(true); }}
                                             selectedStock={selectedStock ?? null}
                                         />
                                     );
@@ -762,17 +793,6 @@ export default function StockistSettings() {
                         </div>
 
                         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                            <div>
-                                <UserSelect
-                                    items={selectableSalesUsers.map(s => ({ id: s.id, title: s.name }))}
-                                    value={stockAdjustForm.user_id}
-                                    onChange={(id) => setStockAdjustForm((prev) => ({ ...prev, user_id: id }))}
-                                    label="Pilih Sales Penerima (OUT)"
-                                    placeholder="Cari sales..."
-                                    disabled={stockAdjustForm.type !== 'out'}
-                                />
-                            </div>
-
                             <div className="relative">
                                 <label className="text-xs font-bold text-zinc-400 px-1 uppercase tracking-tight">Qty</label>
                                 <div className="relative">
@@ -803,6 +823,23 @@ export default function StockistSettings() {
                                         className="rounded-xl border border-gray-300 bg-white w-full h-12 pl-12 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800"
                                     />
                                 </div>
+                            </div>
+
+                            <div>
+                                <UserSelect
+                                    items={selectableSalesUsers.map((s: SalesUser) => ({
+                                        id: s.id,
+                                        title: s.name,
+                                        subtitle: `ID: ${s.id}${s.phone ? ` • ${s.phone}` : ''}`,
+                                        image: s.avatar ? `/storage/profiles/${s.avatar}` : null,
+                                    }))}
+                                    value={stockAdjustForm.user_id}
+                                    onChange={(id) => setStockAdjustForm((prev) => ({ ...prev, user_id: id }))}
+                                    label="Pilih Sales Penerima (OUT)"
+                                    placeholder="Cari sales..."
+                                    disabled={stockAdjustForm.type !== 'out'}
+                                    onPreviewImage={(url) => { setPreviewUrl(String(url)); setIsPreviewOpen(true); }}
+                                />
                             </div>
 
                             {/* <div>
@@ -854,12 +891,28 @@ export default function StockistSettings() {
                                                     >
                                                         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-2">
                                                             <div className="flex items-center gap-2.5">
-                                                                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                                                                    {user?.name?.charAt(0).toUpperCase() || 'U'}
+                                                                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300 overflow-hidden border border-slate-200 dark:border-slate-700">
+                                                                    {user?.avatar ? (
+                                                                        <img
+                                                                            src={`/storage/profiles/${user.avatar}`}
+                                                                            alt={user.name || ''}
+                                                                            className="w-full h-full object-cover"
+                                                                        />
+                                                                    ) : (
+                                                                        user?.name?.charAt(0).toUpperCase() || 'U'
+                                                                    )}
                                                                 </div>
                                                                 <span className="font-semibold text-zinc-900 dark:text-zinc-100">
                                                                     {user?.name || `User ${line.user_id}`}
                                                                 </span>
+                                                                <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">
+                                                                    ID: {user?.id}
+                                                                </span>
+                                                                {user?.phone && (
+                                                                    <span className="ml-2 text-xs text-zinc-500 dark:text-zinc-400">
+                                                                        • {user.phone}
+                                                                    </span>
+                                                                )}
                                                             </div>
 
                                                             <div className="flex items-center gap-3 text-sm">
@@ -910,7 +963,7 @@ export default function StockistSettings() {
                                 <div className="text-sm text-zinc-600 dark:text-zinc-300">Menyimpan {stockAdjustProgress.current}/{stockAdjustProgress.total}...</div>
                             )}
                             <button
-                                onClick={submitStockAdjustment}
+                                onClick={() => setConfirmPreviewOpen(true)}
                                 disabled={
                                     stockAdjustLoading
                                     || !stockAdjustForm.product_id
@@ -935,21 +988,36 @@ export default function StockistSettings() {
                         type={alertConfig.type}
                     />
 
+                    <ConfirmStockAdjustModal
+                        isOpen={confirmPreviewOpen}
+                        onClose={() => setConfirmPreviewOpen(false)}
+                        onConfirm={() => {
+                            setConfirmPreviewOpen(false);
+                            submitStockAdjustment();
+                        }}
+                        stockAdjustForm={stockAdjustForm}
+                        stockAdjustLines={stockAdjustLines}
+                        products={products}
+                        warehouses={warehouses}
+                        salesUsers={salesUsers}
+                    />
+
                     <section className="grid grid-cols-1 gap-4 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 md:grid-cols-2">
                         <div>
                             <ProductMultiSelect
-                                items={products.map(p => ({ id: p.id, title: p.name, subtitle: p.sku }))}
+                                items={products.map(p => ({ id: p.id, title: p.name, subtitle: p.sku, image: p.file_path ? `/storage/${p.file_path}` : null }))}
                                 value={selectedProductIds}
                                 onChange={(ids) => setSelectedProductIds(ids)}
                                 onQueryChange={(q) => setSearchInput(q)}
                                 placeholder="Nama / SKU / kategori"
                                 label="Cari Produk"
+                                onPreviewImage={(url) => { setPreviewUrl(String(url)); setIsPreviewOpen(true); }}
                             />
                         </div>
 
                         <div>
                             <WerehouseMultiSelect
-                                items={warehouses.map(w => ({ id: w.id, title: w.name, subtitle: w.code }))}
+                                items={warehouses.map(w => ({ id: w.id, title: w.name, subtitle: w.code, image: w.file_path ? `/storage/${w.file_path}` : null }))}
                                 value={selectedWarehouseIds}
                                 onChange={(ids) => {
                                     setSelectedWarehouseIds(ids);
@@ -964,6 +1032,7 @@ export default function StockistSettings() {
                                 }}
                                 placeholder="Gudang"
                                 label="Cari Gudang"
+                                onPreviewImage={(url) => { setPreviewUrl(String(url)); setIsPreviewOpen(true); }}
                             />
                         </div>
                     </section>
@@ -975,10 +1044,11 @@ export default function StockistSettings() {
 
                         <div className="m-4">
                             <UserMultiSelect
-                                items={salesUsers.map(s => ({ id: s.id, title: s.name, image: (s as SalesUser & { avatar?: string }).avatar }))}
+                                items={salesUsers.map(s => ({ id: s.id, title: s.name, subtitle: `ID: ${s.id}${(s as SalesUser & { phone?: string }).phone ? ` • ${(s as SalesUser & { phone?: string }).phone}` : ''}`, image: (s as SalesUser & { avatar?: string }).avatar ? `/storage/profiles/${(s as SalesUser & { avatar?: string }).avatar}` : null }))}
                                 value={selectedUserIds}
                                 onChange={(ids) => setSelectedUserIds(ids)}
                                 placeholder="Cari nama sales..."
+                                onPreviewImage={(url) => { setPreviewUrl(String(url)); setIsPreviewOpen(true); }}
                             />
                         </div>
                         <div className="overflow-x-auto">
@@ -1009,12 +1079,28 @@ export default function StockistSettings() {
                                                             const u = salesUsers.find(s => String(s.id) === String(row.user.id)) as (SalesUser & { avatar?: string }) | undefined;
                                                             const avatar = u?.avatar;
                                                             if (avatar) {
-                                                                return <img src={avatar} alt={row.user.name || ''} className="w-full h-full object-cover" />;
+                                                                return (
+                                                                    <button
+                                                                        type="button"
+                                                                        title="Lihat gambar"
+                                                                        onClick={() => { setPreviewUrl('/storage/profiles/' + avatar); setIsPreviewOpen(true); }}
+                                                                        className="w-full h-full block"
+                                                                    >
+                                                                        <img src={'/storage/profiles/' + avatar} alt={row.user.name || ''} className="w-full h-full object-cover cursor-pointer" />
+                                                                    </button>
+                                                                );
                                                             }
                                                             return <div className="w-full h-full flex items-center justify-center"><ImageIcon size={16} className="text-zinc-400" /></div>;
                                                         })()}
                                                     </div>
-                                                    <div className="min-w-0 truncate">{row.user.name || '-'}</div>
+                                                    <div className="min-w-0">
+                                                        <div className="truncate font-medium">{row.user.name || '-'}</div>
+                                                        <div className="text-xs text-zinc-500">{(() => {
+                                                            const u = salesUsers.find(s => String(s.id) === String(row.user.id)) as (SalesUser & { phone?: string }) | undefined;
+                                                            if (!u) return `ID: ${row.user.id}`;
+                                                            return `ID: ${u.id}${u.phone ? ` • ${u.phone}` : ''}`;
+                                                        })()}</div>
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3">{row.warehouse.name ? `${row.warehouse.name} (${row.warehouse.code})` : '-'}</td>
@@ -1057,7 +1143,14 @@ export default function StockistSettings() {
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-800 shrink-0 border border-zinc-200 dark:border-zinc-700">
                                                         {row.product && row.product.file_path ? (
-                                                            <img src={`/storage/${row.product.file_path}`} alt={row.product.name || ''} className="w-full h-full object-cover" />
+                                                            <button
+                                                                type="button"
+                                                                title="Lihat gambar"
+                                                                onClick={() => { setPreviewUrl(`/storage/${row.product.file_path}`); setIsPreviewOpen(true); }}
+                                                                className="block w-full h-full"
+                                                            >
+                                                                <img src={`/storage/${row.product.file_path}`} alt={row.product.name || ''} className="w-full h-full object-cover cursor-pointer" />
+                                                            </button>
                                                         ) : (
                                                             <div className="w-full h-full flex items-center justify-center"><ImageIcon size={16} className="text-zinc-400" /></div>
                                                         )}
@@ -1109,8 +1202,10 @@ export default function StockistSettings() {
                                     <tr>
                                         <th className="px-4 py-3">Waktu</th>
                                         <th className="px-4 py-3">Tipe</th>
+                                        <th className="px-4 py-3">By</th>
                                         <th className="px-4 py-3">Produk</th>
                                         <th className="px-4 py-3">Gudang</th>
+                                        <th className="px-4 py-3">To Sales</th>
                                         <th className="px-4 py-3 text-right">Qty</th>
                                         <th className="px-4 py-3">Ref</th>
                                     </tr>
@@ -1118,7 +1213,7 @@ export default function StockistSettings() {
                                 <tbody>
                                     {filteredMovements.length === 0 && (
                                         <tr>
-                                            <td colSpan={6} className="px-4 py-6 text-center text-gray-500">
+                                            <td colSpan={8} className="px-4 py-6 text-center text-gray-500">
                                                 Belum ada movement.
                                             </td>
                                         </tr>
@@ -1137,19 +1232,61 @@ export default function StockistSettings() {
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3">
+                                                {movement.created_by ? (
+                                                    <div>
+                                                        {(() => {
+                                                            const createdBy = movement.created_by as { id: number; name: string; phone?: string | null } | undefined;
+                                                            return (
+                                                                <>
+                                                                    <a href={`/settings/users?search=${encodeURIComponent(createdBy?.name || '')}`} className="text-sm text-blue-600 hover:underline block">
+                                                                        {createdBy?.name}
+                                                                    </a>
+                                                                    <div className="text-xs text-zinc-500">
+                                                                        {createdBy?.phone
+                                                                            ? `ID: ${createdBy.id} • ${createdBy.phone}`
+                                                                            : `ID: ${createdBy?.id}`}
+                                                                    </div>
+                                                                </>
+                                                            );
+                                                        })()}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-sm text-zinc-600">-</span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-8 h-8 rounded-full overflow-hidden bg-zinc-100 dark:bg-zinc-800 shrink-0 border border-zinc-200 dark:border-zinc-700">
                                                         {movement.product && 'file_path' in movement.product && movement.product.file_path ? (
-                                                            <img src={`/storage/${(movement.product as Product & { file_path?: string | null }).file_path}`} alt={movement.product.name || ''} className="w-full h-full object-cover" />
+                                                            <button
+                                                                type="button"
+                                                                title="Lihat gambar"
+                                                                onClick={() => { setPreviewUrl(`/storage/${(movement.product as Product & { file_path?: string | null }).file_path}`); setIsPreviewOpen(true); }}
+                                                                className="block w-full h-full"
+                                                            >
+                                                                <img src={`/storage/${(movement.product as Product & { file_path?: string | null }).file_path}`} alt={movement.product.name || ''} className="w-full h-full object-cover cursor-pointer" />
+                                                            </button>
                                                         ) : (
                                                             <div className="w-full h-full flex items-center justify-center"><ImageIcon size={16} className="text-zinc-400" /></div>
                                                         )}
                                                     </div>
-                                                    <div className="min-w-0 truncate">{movement.product.name} ({movement.product.sku})</div>
+                                                    <div className="min-w-0">{movement.product.name} ({movement.product.sku})</div>
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3">
                                                 {movement.warehouse.name} ({movement.warehouse.code})
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {movement.user ? (
+                                                    <div>
+                                                        <a href={`/settings/users?search=${encodeURIComponent(movement.user.name)}`} className="text-sm text-blue-600 hover:underline block">
+                                                            {movement.user.name}
+                                                        </a>
+                                                        <div className="text-xs text-zinc-500">{movement.user.phone ? `ID: ${movement.user.id} • ${movement.user.phone}` : `ID: ${movement.user.id}`}</div>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-sm text-zinc-600">-</span>
+                                                )}
                                             </td>
                                             <td className="px-4 py-3 text-right font-semibold">{movement.quantity}</td>
                                             <td className="px-4 py-3">
@@ -1169,6 +1306,17 @@ export default function StockistSettings() {
                         </div>
                     </section>
                 </div>
+
+                {isPreviewOpen && Boolean(previewUrl) && (
+                    <ImagePreviewModal
+                        isOpen={isPreviewOpen}
+                        onClose={() => {
+                            setIsPreviewOpen(false);
+                            setPreviewUrl("");
+                        }}
+                        imageUrl={previewUrl}
+                    />
+                )}
             </SettingsLayout>
         </AppLayout>
     );

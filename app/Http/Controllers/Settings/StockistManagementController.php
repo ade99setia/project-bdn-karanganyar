@@ -27,7 +27,7 @@ class StockistManagementController extends Controller
         $perPage = $request->integer('per_page', 10);
 
         $stocksQuery = ProductStock::query()
-            ->with(['product:id,name,sku,category', 'warehouse:id,name,code'])
+            ->with(['product:id,name,sku,category,file_path', 'warehouse:id,name,code,file_path'])
             ->when($warehouseId, fn($query) => $query->where('warehouse_id', $warehouseId))
             ->when($search !== '', function ($query) use ($search) {
                 $query->whereHas('product', function ($productQuery) use ($search) {
@@ -43,9 +43,10 @@ class StockistManagementController extends Controller
 
         $movements = StockMovement::query()
             ->with([
-                'product:id,name,sku',
-                'warehouse:id,name,code',
-                'user:id,name',
+                'product:id,name,sku,file_path',
+                'warehouse:id,name,code,file_path',
+                    'user:id,name,phone,avatar',
+                    'createdBy:id,name,phone',
                 'salesVisit:id,activity_type,visited_at',
             ])
             ->when($warehouseId, fn($query) => $query->where('warehouse_id', $warehouseId))
@@ -55,9 +56,9 @@ class StockistManagementController extends Controller
 
         $salesStockSummaries = SalesProductStock::query()
             ->with([
-                'user:id,name,warehouse_id',
-                'user.warehouse:id,name,code',
-                'product:id,name,sku',
+                'user:id,name,warehouse_id,avatar',
+                'user.warehouse:id,name,code,file_path',
+                'product:id,name,sku,file_path',
             ])
             ->where('quantity', '>', 0)
             ->whereHas('user')
@@ -76,16 +77,19 @@ class StockistManagementController extends Controller
                     'user' => [
                         'id' => $stock->user?->id,
                         'name' => $stock->user?->name,
+                        'avatar' => $stock->user?->avatar,
                     ],
                     'warehouse' => [
                         'id' => $stock->user?->warehouse?->id,
                         'name' => $stock->user?->warehouse?->name,
                         'code' => $stock->user?->warehouse?->code,
+                        'file_path' => $stock->user?->warehouse?->file_path,
                     ],
                     'product' => [
                         'id' => $stock->product?->id,
                         'name' => $stock->product?->name,
                         'sku' => $stock->product?->sku,
+                        'file_path' => $stock->product?->file_path,
                     ],
                 ];
             })
@@ -96,12 +100,12 @@ class StockistManagementController extends Controller
             'movements' => $movements,
             'salesStockSummaries' => $salesStockSummaries,
             'products' => Product::query()
-                ->select('id', 'name', 'sku', 'category')
+                ->select('id', 'name', 'sku', 'category', 'file_path')
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(),
             'salesUsers' => User::query()
-                ->select('id', 'name', 'warehouse_id')
+                ->select('id', 'name', 'avatar', 'phone', 'warehouse_id')
                 ->whereNotNull('warehouse_id')
                 ->orderBy('name')
                 ->get(),
@@ -265,7 +269,8 @@ class StockistManagementController extends Controller
                 'type' => $type,
                 'quantity' => $quantity,
                 'reference' => $validated['reference'] ?? null,
-                'note' => $validated['note'] ?? 'Manual stock adjustment from settings by ' . (Auth::user()?->name ?? 'system'),
+                'note' => $validated['note'] ?? 'Manual stock adjustment',
+                'created_by' => Auth::id(),
             ]);
         });
 

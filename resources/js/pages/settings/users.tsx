@@ -331,7 +331,7 @@ export default function UserSettings() {
             <Head title="User Settings" />
 
             <SettingsLayout>
-                <div className="space-y-8">
+                <div className="space-y-8 md:w-full">
                     {(flash?.success || flash?.error || flash?.warning || flash?.info) && (
                         <div className={`rounded-xl border px-4 py-3 text-sm ${flash?.success
                             ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'

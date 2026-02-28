@@ -77,7 +77,16 @@ export default function UserMultiSelect({ items, value, onChange, label, placeho
                                 <div key={id} className="flex items-center gap-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 px-2 py-1 rounded-xl text-xs font-semibold max-w-xs">
                                     <div className="w-6 h-6 rounded-md bg-zinc-100 dark:bg-zinc-800 overflow-hidden shrink-0 border border-zinc-200 dark:border-zinc-700">
                                         {item.image ? (
-                                            <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+                                            (onPreviewImage
+                                                ? (
+                                                    <button type="button" onClick={(e) => { e.stopPropagation(); onPreviewImage(item.image!); }} className="w-full h-full block cursor-pointer">
+                                                        <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+                                                    </button>
+                                                )
+                                                : (
+                                                    <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+                                                )
+                                            )
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center"><ImageIcon size={14} className="text-zinc-400" /></div>
                                         )}

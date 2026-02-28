@@ -24,6 +24,14 @@ export default function WerehouseSelect({ items, value, onChange, label, placeho
     const [showResults, setShowResults] = useState(false);
     const rootRef = useRef<HTMLDivElement | null>(null);
 
+    const resolveImageSrc = (path?: string | null) => {
+        if (!path) return null;
+        if (path.startsWith('http://') || path.startsWith('https://')) return path;
+        if (path.startsWith('/')) return path;
+        if (path.startsWith('storage/')) return `/${path}`;
+        return `/storage/${path}`;
+    };
+
     const selectedItem = items.find(i => String(i.id) === String(value));
     const derivedInputValue = selectedItem ? selectedItem.title : '';
 
@@ -81,19 +89,21 @@ export default function WerehouseSelect({ items, value, onChange, label, placeho
                             >
                                 <div className="w-10 h-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 overflow-hidden shrink-0 border border-zinc-200 dark:border-zinc-700">
                                     {i.image ? (
-                                        <div
-                                            role="button"
-                                            tabIndex={0}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                if (onPreviewImage) {
-                                                    onPreviewImage(i.image!);
-                                                }
-                                            }}
-                                            className="w-full h-full block cursor-pointer group"
-                                        >
-                                            <img src={i.image} alt={i.title} className="w-full h-full object-cover group-hover:brightness-110 transition-all" />
-                                        </div>
+                                        (() => {
+                                            const src = resolveImageSrc(i.image);
+                                            if (!src) return (
+                                                <div className="w-full h-full flex items-center justify-center"><ImageIcon size={18} className="text-zinc-400" /></div>
+                                            );
+                                            return (
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => { e.stopPropagation(); if (onPreviewImage) onPreviewImage(String(src)); }}
+                                                    className="w-full h-full block cursor-pointer group"
+                                                >
+                                                    <img src={String(src)} alt={i.title} className="w-full h-full object-cover group-hover:brightness-110 transition-all" />
+                                                </button>
+                                            );
+                                        })()
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center"><ImageIcon size={18} className="text-zinc-400" /></div>
                                     )}
@@ -122,14 +132,27 @@ export default function WerehouseSelect({ items, value, onChange, label, placeho
                             <>
                                 <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 shadow-md border-2 border-indigo-200 dark:border-indigo-800">
                                     {sel?.image ? (
-                                        <button
-                                            onClick={() => onPreviewImage && onPreviewImage(String(sel.image))}
-                                            className="w-full h-full block cursor-pointer"
-                                        >
-                                            <img src={String(sel.image)} alt={sel.title} className="w-full h-full object-cover group-hover:brightness-110 transition-all" />
-                                        </button>
+                                        (() => {
+                                            const src = resolveImageSrc(sel.image);
+                                            if (!src) return (
+                                                <div className="w-full h-full flex items-center justify-center bg-zinc-200 dark:bg-zinc-700">
+                                                    <ImageIcon size={24} className="text-zinc-400" />
+                                                </div>
+                                            );
+                                            return (
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => { e.stopPropagation(); if (onPreviewImage) onPreviewImage(String(src)); }}
+                                                    className="w-full h-full block cursor-pointer group"
+                                                >
+                                                    <img src={String(src)} alt={sel.title} className="w-full h-full object-cover group-hover:brightness-110 transition-all" />
+                                                </button>
+                                            );
+                                        })()
                                     ) : (
-                                        <div className="w-full h-full flex items-center justify-center bg-zinc-200 dark:bg-zinc-700"><ImageIcon size={24} className="text-zinc-400" /></div>
+                                        <div className="w-full h-full flex items-center justify-center bg-zinc-200 dark:bg-zinc-700">
+                                            <ImageIcon size={24} className="text-zinc-400" />
+                                        </div>
                                     )}
                                 </div>
                                 <div className="flex-1 min-w-0">
