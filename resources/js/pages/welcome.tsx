@@ -219,7 +219,7 @@ export default function Welcome({
                             <ul className="flex gap-3 text-sm leading-normal">
                                 <li>
                                     <a
-                                        href="/"
+                                        href="https://drive.google.com/uc?export=download&id=1dr3rm0WoHWin7_Di9ZF2ft7l60_g1zU0"
                                         target="_blank"
                                         className="inline-block rounded-sm border border-black bg-[#1b1b18] px-5 py-1.5 text-sm leading-normal text-white hover:border-black hover:bg-black dark:border-[#eeeeec] dark:bg-[#eeeeec] dark:text-[#1C1C1A] dark:hover:border-white dark:hover:bg-white"
                                     >

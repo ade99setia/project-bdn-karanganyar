@@ -9,6 +9,8 @@ use App\Models\SalesAttendance;
 use App\Models\SalesVisit;
 use App\Models\SalesVisitPhoto;
 use App\Models\Customer; // Pastikan Model Customer di-import
+use App\Models\SalesProductStock;
+use App\Models\StockMovement;
 
 class SalesVisitController extends Controller
 {
@@ -114,6 +116,8 @@ class SalesVisitController extends Controller
 
                 // === D. SIMPAN PRODUK ===
                 if (!empty($validated['products'])) {
+                    $warehouseId = $user->warehouse_id;
+
                     foreach ($validated['products'] as $item) {
                         $normalizedAction = match ($item['action_type']) {
                             'sold' => 'terjual',
@@ -134,6 +138,59 @@ class SalesVisitController extends Controller
                             'created_at'  => now(),
                             'updated_at'  => now(),
                         ]);
+
+                        if ($validated['activity_type'] !== 'pengiriman') {
+                            continue;
+                        }
+
+                        $stock = SalesProductStock::query()
+                            ->where('user_id', $user->id)
+                            ->where('product_id', $item['product_id'])
+                            ->lockForUpdate()
+                            ->first();
+
+                        if (!$stock) {
+                            $stock = SalesProductStock::create([
+                                'user_id' => $user->id,
+                                'product_id' => $item['product_id'],
+                                'quantity' => 0,
+                            ]);
+                            $stock = $stock->fresh();
+                        }
+
+                        $quantity = (int) $item['quantity'];
+
+                        if ($normalizedAction === 'terjual') {
+                            if ($stock->quantity < $quantity) {
+                                throw new \Exception("Stok tidak cukup untuk produk ID {$item['product_id']}");
+                            }
+
+                            $stock->decrement('quantity', $quantity);
+
+                            StockMovement::create([
+                                'product_id' => $item['product_id'],
+                                'warehouse_id' => $warehouseId,
+                                'sales_visit_id' => $visit->id,
+                                'user_id' => $user->id,
+                                'type' => 'out',
+                                'quantity' => $quantity,
+                                'reference' => 'VISIT-' . $visit->id,
+                                'note' => $item['note'] ?? null,
+                            ]);
+                        } elseif ($normalizedAction === 'retur') {
+                            $stock->increment('quantity', $quantity);
+
+                            StockMovement::create([
+                                'product_id' => $item['product_id'],
+                                'warehouse_id' => $warehouseId,
+                                'sales_visit_id' => $visit->id,
+                                'user_id' => $user->id,
+                                'type' => 'in',
+                                'quantity' => $quantity,
+                                'reference' => 'VISIT-' . $visit->id,
+                                'note' => $item['note'] ?? null,
+                            ]);
+                        }
                     }
                 }
             });

@@ -21,6 +21,7 @@ interface Product {
     sku: string;
     category?: string;
     price?: number;
+    stock_quantity?: number;
 }
 
 interface CartItem {
@@ -44,6 +45,7 @@ interface VisitInputModalContainerProps {
     products: Product[];
     getVerifiedLocation: () => Promise<LocationPosition | null>;
     onPreviewImage: (url: string) => void;
+    showAlert?: (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info', onConfirm?: () => void, isFatal?: boolean) => void;
 }
 
 export default function VisitInputModalContainer({
@@ -52,6 +54,7 @@ export default function VisitInputModalContainer({
     products,
     getVerifiedLocation,
     onPreviewImage,
+    showAlert: showAlertFromProps,
 }: VisitInputModalContainerProps) {
     const [alertConfig, setAlertConfig] = useState({
         isOpen: false,
@@ -62,16 +65,16 @@ export default function VisitInputModalContainer({
         isFatal: false,
     });
 
-    const showAlert = (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info', onConfirm?: () => void, isFatal = false) => {
+    const showAlert = showAlertFromProps || ((title: string, message: string, type: 'success' | 'error' | 'warning' | 'info', onConfirm?: () => void, isFatal = false) => {
         setAlertConfig({
             isOpen: true,
             title,
             message,
             type,
-            onConfirm: onConfirm || (() => setAlertConfig(prev => ({ ...prev, isOpen: false }))),
+            onConfirm: onConfirm || (() => setAlertConfig(prev => ({ ...prev, isOpen: false })) ),
             isFatal,
         });
-    };
+    });
     const [processing, setProcessing] = useState(false);
     const [customerMode, setCustomerMode] = useState<'database' | 'manual'>('database');
     const [nearbyCustomers, setNearbyCustomers] = useState<Customer[]>([]);
@@ -294,6 +297,35 @@ export default function VisitInputModalContainer({
         const selectedProduct = products.find(p => p.id === Number(tempProdId));
         if (!selectedProduct) return;
 
+        const normalizedAction = tempAction === 'sold' ? 'terjual' : tempAction;
+        const requestedQty = Math.max(0, Number(tempQty) || 0);
+
+        if (requestedQty <= 0) {
+            showAlert(
+                'Qty Tidak Valid',
+                'Jumlah produk harus lebih dari 0.',
+                'warning'
+            );
+            return;
+        }
+
+        if (normalizedAction === 'terjual') {
+            const stockQty = Math.max(0, Number(selectedProduct.stock_quantity ?? 0));
+            const soldQtyInCart = cart
+                .filter(c => c.product_id === Number(tempProdId) && (c.action_type === 'terjual' || c.action_type === 'sold'))
+                .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0);
+
+            if ((soldQtyInCart + requestedQty) > stockQty) {
+                const remaining = Math.max(0, stockQty - soldQtyInCart);
+                showAlert(
+                    'Stok Tidak Cukup',
+                    `Stok tersisa untuk produk ini hanya ${remaining} unit di gudang Anda.`,
+                    'warning'
+                );
+                return;
+            }
+        }
+
         const existingIndex = cart.findIndex(c => c.product_id === Number(tempProdId) && c.action_type === tempAction);
 
         if (existingIndex >= 0) {
@@ -317,6 +349,20 @@ export default function VisitInputModalContainer({
     };
 
     const isNegativeAction = (actionType: string) => actionType === 'retur' || actionType === 'returned';
+
+    const selectedProductForInput = tempProdId
+        ? products.find(p => p.id === Number(tempProdId))
+        : undefined;
+
+    const selectedProductStock = Math.max(0, Number(selectedProductForInput?.stock_quantity ?? 0));
+
+    const soldQtyInCartForSelectedProduct = tempProdId
+        ? cart
+            .filter(item => item.product_id === Number(tempProdId) && (item.action_type === 'terjual' || item.action_type === 'sold'))
+            .reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
+        : 0;
+
+    const remainingStockForSelectedProduct = Math.max(0, selectedProductStock - soldQtyInCartForSelectedProduct);
 
     const removeFromCart = (index: number) => {
         setCart(cart.filter((_, i) => i !== index));
@@ -574,6 +620,9 @@ export default function VisitInputModalContainer({
                 isCompressing={isCompressing}
                 onSubmit={submitVisitReport}
                 onPreviewImage={onPreviewImage}
+                selectedProductStock={selectedProductStock}
+                remainingStockForSelectedProduct={remainingStockForSelectedProduct}
+                showAlert={showAlert}
             />
 
             <AlertModal

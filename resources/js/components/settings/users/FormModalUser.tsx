@@ -12,10 +12,18 @@ interface UserForm {
     email: string;
     phone: string;
     role_id: string;
+    warehouse_id: string;
     password: string;
     employee_status: string;
     supervisor_id: string;
 }
+
+type WarehouseItem = {
+    id: number;
+    name: string;
+    code: string;
+    is_active: boolean;
+};
 
 type SupervisorItem = {
     employee_id: number;
@@ -34,6 +42,7 @@ interface FormModalUserProps {
     isEdit: boolean;
     loading: boolean;
     roles: RoleItem[];
+    warehouses: WarehouseItem[];
     employeeStatuses: string[];
     supervisors: SupervisorItem[];
     editingUserId: number | null;
@@ -48,6 +57,7 @@ export default function FormModalUser({
     isEdit,
     loading,
     roles,
+    warehouses,
     employeeStatuses,
     supervisors,
     editingUserId,
@@ -132,6 +142,23 @@ export default function FormModalUser({
                                 {roles.map((role) => (
                                     <option key={role.id} value={role.id}>
                                         {role.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">Gudang Default</label>
+                            <select
+                                name="warehouse_id"
+                                value={form.warehouse_id}
+                                onChange={onChange}
+                                className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800"
+                            >
+                                <option value="">Tanpa Gudang</option>
+                                {warehouses.map((warehouse) => (
+                                    <option key={warehouse.id} value={warehouse.id}>
+                                        {warehouse.name} ({warehouse.code})
                                     </option>
                                 ))}
                             </select>

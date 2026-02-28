@@ -5,6 +5,7 @@ use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\TwoFactorAuthenticationController;
 use App\Http\Controllers\Settings\UserManagementController;
 use App\Http\Controllers\Settings\ProductManagementController;
+use App\Http\Controllers\Settings\StockistManagementController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -63,4 +64,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('settings.products.update');
     Route::delete('settings/products/{product}', [ProductManagementController::class, 'destroy'])
         ->name('settings.products.destroy');
+
+    Route::get('settings/stockist', [StockistManagementController::class, 'index'])
+        ->name('settings.stockist.index');
+    Route::post('settings/warehouses', [StockistManagementController::class, 'storeWarehouse'])
+        ->name('settings.warehouses.store');
+    Route::put('settings/warehouses/{warehouse}', [StockistManagementController::class, 'updateWarehouse'])
+        ->name('settings.warehouses.update');
+    Route::delete('settings/warehouses/{warehouse}', [StockistManagementController::class, 'destroyWarehouse'])
+        ->name('settings.warehouses.destroy');
+    Route::post('settings/stocks/adjust', [StockistManagementController::class, 'adjustStock'])
+        ->name('settings.stocks.adjust');
 });

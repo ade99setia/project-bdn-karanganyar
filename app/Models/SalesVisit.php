@@ -69,4 +69,9 @@ class SalesVisit extends Model
     {
         return $this->hasMany(SalesProductHistory::class);
     }
+
+    public function stockMovements()
+    {
+        return $this->hasMany(StockMovement::class);
+    }
 }

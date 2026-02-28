@@ -7,6 +7,8 @@ type UserRow = {
     phone: string | null;
     role_id: number | null;
     role_name: string | null;
+    warehouse_id: number | null;
+    warehouse_name: string | null;
     employee_status: string | null;
     employee_position: string | null;
     employee_supervisor_id: number | null;
@@ -43,6 +45,7 @@ export default function TableWithPaginationUser({ users, onEdit, onDelete, updat
                             <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300">Pengguna</th>
                             <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300">Kontak</th>
                             <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300">Role</th>
+                            <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300">Gudang</th>
                             <th className="px-6 py-4 text-center text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300">Status</th>
                             <th className="px-6 py-4 text-center text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300">Aksi</th>
                         </tr>
@@ -50,7 +53,7 @@ export default function TableWithPaginationUser({ users, onEdit, onDelete, updat
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                         {users.data.length === 0 ? (
                             <tr>
-                                <td className="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400" colSpan={7}>
+                                <td className="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400" colSpan={8}>
                                     Belum ada data pengguna.
                                 </td>
                             </tr>
@@ -68,6 +71,7 @@ export default function TableWithPaginationUser({ users, onEdit, onDelete, updat
                                         <div className="text-xs text-gray-500 dark:text-gray-400">{user.phone || '-'}</div>
                                     </td>
                                     <td className="px-6 py-3 text-sm text-gray-700 dark:text-gray-300">{user.role_name ?? '-'}</td>
+                                    <td className="px-6 py-3 text-sm text-gray-700 dark:text-gray-300">{user.warehouse_name ?? '-'}</td>
                                     <td className="px-6 py-3 text-center text-xs">
                                         <span
                                             className={`rounded-full px-2.5 py-1 font-semibold ${user.employee_status === 'active'

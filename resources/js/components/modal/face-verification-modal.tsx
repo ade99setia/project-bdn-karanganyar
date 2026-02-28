@@ -1,9 +1,14 @@
+
+import type * as faceapi from 'face-api.js';
+import type {
+    WithFaceExpressions,
+    FaceExpressions,
+} from 'face-api.js';
 import { X, Loader2, ScanFace, CheckCircle2, Camera } from 'lucide-react';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import type * as FaceApi from 'face-api.js';
 
 interface Props {
     isOpen: boolean;
@@ -23,13 +28,14 @@ export default function FaceVerificationModal({
     userName,
 }: Props) {
     const videoRef = useRef<HTMLVideoElement>(null);
-    const faceApiRef = useRef<FaceApi | null>(null);
-    const faceApiPromiseRef = useRef<Promise<FaceApi> | null>(null);
+    const faceApiRef = useRef<typeof faceapi | null>(null);
+    const faceApiPromiseRef = useRef<Promise<typeof faceapi> | null>(null);
     const [isLoadingModels, setIsLoadingModels] = useState(true);
     const [cameraStarted, setCameraStarted] = useState(false);
     const [cameraError, setCameraError] = useState<string | null>(null);
     const [step, setStep] = useState<'ready' | 'match' | 'neutral1' | 'smile1' | 'neutral2' | 'smile2' | 'success'>('ready');
     const [feedback, setFeedback] = useState("Menyiapkan verifikasi wajah...");
+    const [isCameraWarmingUp, setIsCameraWarmingUp] = useState(false);
 
     const streamRef = useRef<MediaStream | null>(null);
     const requestRef = useRef<number | undefined>(undefined);
@@ -132,15 +138,15 @@ export default function FaceVerificationModal({
         return `Langkah ${currentStep} / 4`;
     };
 
-    const verifyCurrentFaceOwner = useCallback((faceapi: FaceApi, descriptor: Float32Array, threshold = MATCH_THRESHOLD) => {
+    const verifyCurrentFaceOwner = useCallback((faceapiInstance: typeof faceapi, descriptor: Float32Array, threshold = MATCH_THRESHOLD) => {
         if (!targetDescriptorRef.current) return false;
-        const distance = faceapi.euclideanDistance(descriptor, targetDescriptorRef.current);
+        const distance = faceapiInstance.euclideanDistance(descriptor, targetDescriptorRef.current);
         return distance <= threshold;
     }, [MATCH_THRESHOLD]);
 
     // FUNGSI 3: Logika Liveness (Tantangan Wajah)
     const runLivenessChallenge = useCallback(
-        (detection: FaceApi.WithFaceExpressions<{ expressions: FaceApi.FaceExpressions }>) => {
+        (detection: WithFaceExpressions<{ expressions: FaceExpressions }>) => {
             const { expressions } = detection;
             const currentStep = stepRef.current;
 
@@ -265,7 +271,7 @@ export default function FaceVerificationModal({
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: {
                     facingMode: 'user',
-                    width: { ideal: 640 }, // Membatasi resolusi agar ringan
+                    width: { ideal: 640 },
                     height: { ideal: 480 }
                 },
                 audio: false
@@ -289,8 +295,12 @@ export default function FaceVerificationModal({
                 setStep('match');
                 mismatchCountRef.current = 0;
 
-                // Mulai loop deteksi
-                detectFace();
+                // Tampilkan overlay warming up selama 3 detik
+                setIsCameraWarmingUp(true);
+                setTimeout(() => {
+                    setIsCameraWarmingUp(false);
+                    detectFace();
+                }, 3000);
             }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (err: any) {
@@ -445,6 +455,22 @@ export default function FaceVerificationModal({
                                         <div className="absolute inset-x-0 h-1 bg-cyan-400/60 blur-sm animate-scan-line shadow-[0_0_20px_rgba(34,211,238,0.7)]" />
                                     )}
                                     <div className="absolute inset-0 border-2 border-white/10 rounded-[45%]" />
+
+                                    {/* Overlay loading jika model belum siap */}
+                                    {isLoadingModels && (
+                                        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm">
+                                            <Loader2 className="h-14 w-14 animate-spin text-cyan-300 mb-4" />
+                                            <p className="text-white text-lg font-semibold">Memuat model AI, mohon tunggu...</p>
+                                        </div>
+                                    )}
+
+                                    {/* Overlay warming up kamera */}
+                                    {isCameraWarmingUp && !isLoadingModels && (
+                                        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
+                                            <Loader2 className="h-12 w-12 animate-spin text-cyan-200 mb-3" />
+                                            <p className="text-white text-base font-semibold">Menyiapkan kamera...</p>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 

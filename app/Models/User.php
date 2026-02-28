@@ -25,6 +25,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'password',
         'avatar',
         'role_id',
+        'warehouse_id',
     ];
 
     /**
@@ -95,6 +96,16 @@ class User extends Authenticatable implements MustVerifyEmail
     public function role()
     {
         return $this->belongsTo(Role::class);
+    }
+
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class);
+    }
+
+    public function salesProductStocks()
+    {
+        return $this->hasMany(SalesProductStock::class);
     }
 
     public function employee()

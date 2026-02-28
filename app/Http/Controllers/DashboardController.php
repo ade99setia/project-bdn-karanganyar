@@ -3,10 +3,10 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use App\Models\SalesAttendance;
 use App\Models\SalesVisit;
-use App\Models\User;
 use App\Models\Product;
 use App\Models\FaceDescriptor;
 
@@ -39,10 +39,19 @@ class DashboardController extends Controller
             ->latest('visited_at')
             ->get();
 
-        $products = Product::where('is_active', true)
-            ->select('id', 'name', 'file_path', 'sku', 'category', 'price')
-            ->orderBy('name')
-            ->get();
+        $productsQuery = Product::query()
+            ->where('products.is_active', true)
+            ->select('products.id', 'products.name', 'products.file_path', 'products.sku', 'products.category', 'products.price')
+            ->orderBy('products.name');
+
+        $productsQuery
+            ->leftJoin('sales_product_stocks as sps', function ($join) use ($user) {
+                $join->on('sps.product_id', '=', 'products.id')
+                    ->where('sps.user_id', '=', $user->id);
+            })
+            ->addSelect(DB::raw('COALESCE(sps.quantity, 0) as stock_quantity'));
+
+        $products = $productsQuery->get();
 
         return Inertia::render('sales/visit-record', [
             'user' => $user,

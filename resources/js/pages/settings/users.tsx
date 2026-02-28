@@ -15,6 +15,8 @@ interface UserRow {
     phone: string | null;
     role_id: number | null;
     role_name: string | null;
+    warehouse_id: number | null;
+    warehouse_name: string | null;
     employee_status: string | null;
     employee_position: string | null;
     employee_supervisor_id: number | null;
@@ -47,6 +49,13 @@ interface SupervisorItem {
     role_rank: number;
 }
 
+interface WarehouseItem {
+    id: number;
+    name: string;
+    code: string;
+    is_active: boolean;
+}
+
 interface PageProps {
     users: Pagination<UserRow>;
     filters: {
@@ -55,6 +64,7 @@ interface PageProps {
         per_page?: number;
     };
     roles: RoleItem[];
+    warehouses: WarehouseItem[];
     supervisors: SupervisorItem[];
     role_counts: Record<string, number>;
     flash?: {
@@ -74,7 +84,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 export default function UserSettings() {
-    const { users, filters, role_counts, roles, supervisors, flash } = usePage<PageProps>().props;
+    const { users, filters, role_counts, roles, warehouses, supervisors, flash } = usePage<PageProps>().props;
 
     const employeeStatusOptions = ['active', 'inactive', 'resign'];
 
@@ -102,6 +112,7 @@ export default function UserSettings() {
         email: '',
         phone: '',
         role_id: '',
+        warehouse_id: '',
         password: '',
         employee_status: 'active',
         supervisor_id: '',
@@ -146,6 +157,7 @@ export default function UserSettings() {
             email: '',
             phone: '',
             role_id: '',
+            warehouse_id: '',
             password: '',
             employee_status: 'active',
             supervisor_id: '',
@@ -160,6 +172,7 @@ export default function UserSettings() {
             email: user.email,
             phone: user.phone || '',
             role_id: user.role_id ? String(user.role_id) : '',
+            warehouse_id: user.warehouse_id ? String(user.warehouse_id) : '',
             password: '',
             employee_status: user.employee_status || 'active',
             supervisor_id: user.employee_supervisor_id ? String(user.employee_supervisor_id) : '',
@@ -189,6 +202,7 @@ export default function UserSettings() {
         const payload = {
             ...form,
             role_id: Number(form.role_id),
+            warehouse_id: form.warehouse_id ? Number(form.warehouse_id) : null,
             supervisor_id: form.supervisor_id ? Number(form.supervisor_id) : null,
         };
 
@@ -602,6 +616,7 @@ export default function UserSettings() {
                 isEdit={isEdit}
                 loading={formLoading}
                 roles={roles}
+                warehouses={warehouses}
                 employeeStatuses={employeeStatusOptions}
                 supervisors={supervisors}
                 editingUserId={editingUser?.id ?? null}

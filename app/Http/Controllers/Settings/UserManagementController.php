@@ -7,6 +7,7 @@ use App\Models\AppSetting;
 use App\Models\Employee;
 use App\Models\Role;
 use App\Models\User;
+use App\Models\Warehouse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -91,8 +92,9 @@ class UserManagementController extends Controller
             ->with([
                 'role:id,name,rank',
                 'employee:id,user_id,status,position,division',
+                'warehouse:id,name,code',
             ])
-            ->select('id', 'name', 'email', 'phone', 'avatar', 'role_id', 'created_at', 'updated_at');
+            ->select('id', 'name', 'email', 'phone', 'avatar', 'role_id', 'warehouse_id', 'created_at', 'updated_at');
 
         if ($search !== '') {
             $usersQuery->where(function ($query) use ($search) {
@@ -129,6 +131,8 @@ class UserManagementController extends Controller
                     'avatar' => $user->avatar,
                     'role_id' => $user->role_id,
                     'role_name' => $user->role?->name,
+                    'warehouse_id' => $user->warehouse_id,
+                    'warehouse_name' => $user->warehouse?->name,
                     'employee_status' => $user->employee?->status,
                     'employee_position' => $user->employee?->position,
                     'employee_supervisor_id' => $user->employee?->supervisor_id,
@@ -140,6 +144,12 @@ class UserManagementController extends Controller
         $roles = Role::query()
             ->select('id', 'name', 'description', 'rank')
             ->orderBy('id')
+            ->get();
+
+        $warehouses = Warehouse::query()
+            ->select('id', 'name', 'code', 'is_active')
+            ->where('is_active', true)
+            ->orderBy('name')
             ->get();
 
         $supervisors = Employee::query()
@@ -179,6 +189,7 @@ class UserManagementController extends Controller
                 'per_page' => $perPage,
             ],
             'roles' => $roles,
+            'warehouses' => $warehouses,
             'supervisors' => $supervisors,
             'role_counts' => $roleCounts,
             'workday' => [
@@ -221,6 +232,7 @@ class UserManagementController extends Controller
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'phone' => ['nullable', 'string', 'max:50'],
             'role_id' => ['required', 'integer', 'exists:roles,id'],
+            'warehouse_id' => ['nullable', 'integer', 'exists:warehouses,id'],
             'password' => ['required', 'string', 'min:8'],
             'employee_status' => ['nullable', Rule::in($employeeStatuses)],
             'supervisor_id' => ['nullable', 'integer', 'exists:employees,id'],
@@ -239,6 +251,7 @@ class UserManagementController extends Controller
                 'email' => $validated['email'],
                 'phone' => $validated['phone'] ?? null,
                 'role_id' => $validated['role_id'],
+                'warehouse_id' => $validated['warehouse_id'] ?? null,
                 'password' => $validated['password'],
             ]);
 
@@ -317,6 +330,7 @@ class UserManagementController extends Controller
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email,' . $user->id],
             'phone' => ['nullable', 'string', 'max:50'],
             'role_id' => ['required', 'integer', 'exists:roles,id'],
+            'warehouse_id' => ['nullable', 'integer', 'exists:warehouses,id'],
             'password' => ['nullable', 'string', 'min:8'],
             'employee_status' => ['nullable', Rule::in($employeeStatuses)],
             'supervisor_id' => ['nullable', 'integer', 'exists:employees,id'],
@@ -334,6 +348,7 @@ class UserManagementController extends Controller
             $user->email = $validated['email'];
             $user->phone = $validated['phone'] ?? null;
             $user->role_id = $validated['role_id'];
+            $user->warehouse_id = $validated['warehouse_id'] ?? null;
 
             if (!empty($validated['password'])) {
                 $user->password = $validated['password'];

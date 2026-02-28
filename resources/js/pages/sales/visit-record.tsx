@@ -612,6 +612,7 @@ export default function SalesRecord({ attendanceToday, recentVisits, user, serve
                     setIsPreviewOpen(true);
                     setPreviewUrl(url);
                 }}
+                showAlert={showAlert}
             />
 
             {userFaceDescriptor && (

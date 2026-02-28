@@ -43,6 +43,11 @@ const sidebarNavItems: NavItem[] = [
         icon: null,
     },
     {
+        title: 'Stockist',
+        href: '/settings/stockist',
+        icon: null,
+    },
+    {
         title: 'Workdays',
         href: '/settings/workday',
         icon: null,

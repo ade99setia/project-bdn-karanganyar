@@ -34,6 +34,7 @@ interface Product {
     file_path?: string;
     sku: string;
     price?: number;
+    stock_quantity?: number;
 }
 
 interface CartItem {
@@ -95,6 +96,8 @@ interface VisitInputModalProps {
     isCompressing: boolean;
     onSubmit: () => void;
     onPreviewImage: (url: string) => void;
+    selectedProductStock: number;
+    remainingStockForSelectedProduct: number;
 }
 
 export default function VisitInputModal({
@@ -148,7 +151,9 @@ export default function VisitInputModal({
     isCompressing,
     onSubmit,
     onPreviewImage,
-}: VisitInputModalProps) {
+    remainingStockForSelectedProduct,
+    showAlert,
+}: VisitInputModalProps & { showAlert: (title: string, message: string, type: "success" | "error" | "warning" | "info", onConfirm?: () => void, isFatal?: boolean) => void }) {
     if (!isOpen) return null;
 
     const isDatabaseSelected = customerMode === 'database' && !!selectedCustomerId;
@@ -164,6 +169,10 @@ export default function VisitInputModal({
         && hasDescription
         && hasPhoto
         && (isKunjungan || (isPengiriman && cart.length > 0));
+
+    const isTerjualAction = tempAction === 'terjual' || tempAction === 'sold';
+    const maxQtyForCurrentSelection = isTerjualAction ? remainingStockForSelectedProduct : null;
+    const selectableProducts = products.filter((product) => Number(product.stock_quantity ?? 0) > 0);
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
@@ -695,7 +704,7 @@ export default function VisitInputModal({
                                                                         )}
                                                                     </div>
                                                                     <div className="flex-1 min-w-0">
-                                                                        <p className="text-sm font-bold text-orange-900 dark:text-orange-100 truncate">{selected?.name}</p>
+                                                                        <p className="text-sm font-bold text-orange-900 dark:text-orange-100 wrap-break-word whitespace-normal">{selected?.name}</p>
                                                                         <p className="text-xs text-orange-700 dark:text-orange-300 font-mono">{selected?.sku}</p>
                                                                     </div>
                                                                     <button
@@ -724,11 +733,11 @@ export default function VisitInputModal({
                                                         className="absolute z-50 w-full mt-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl max-h-60 overflow-y-auto p-2 thin-scrollbar"
                                                     >
                                                         {(searchQuery.trim().length > 0
-                                                            ? products.filter(p =>
+                                                            ? selectableProducts.filter(p =>
                                                                 p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                                                                 p.sku.toLowerCase().includes(searchQuery.toLowerCase())
                                                             )
-                                                            : products.slice(0, 10)
+                                                            : selectableProducts.slice(0, 10)
                                                         )
                                                             .map(p => (
                                                                 <button
@@ -759,14 +768,15 @@ export default function VisitInputModal({
                                                                         )}
                                                                     </div>
                                                                     <div className="flex-1 min-w-0">
-                                                                        <p className="text-sm font-bold truncate dark:text-zinc-100 group-hover:text-orange-600 transition-colors">{p.name}</p>
+                                                                        <p className="text-sm font-bold dark:text-zinc-100 group-hover:text-orange-600 transition-colors wrap-break-word whitespace-normal">{p.name}</p>
                                                                         <p className="text-[10px] text-zinc-500 font-mono tracking-tighter uppercase">{p.sku}</p>
+                                                                        <p className="text-[10px] font-semibold text-indigo-500 uppercase">Stok: {Math.max(0, Number(p.stock_quantity ?? 0))}</p>
                                                                     </div>
                                                                     <Plus size={16} className="text-zinc-300 group-hover:text-orange-500" />
                                                                 </button>
                                                             ))}
 
-                                                        {searchQuery.trim().length > 0 && products.filter(p =>
+                                                        {searchQuery.trim().length > 0 && selectableProducts.filter(p =>
                                                             p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                                                             p.sku.toLowerCase().includes(searchQuery.toLowerCase())
                                                         ).length === 0 && (
@@ -804,12 +814,34 @@ export default function VisitInputModal({
                                         </div>
 
                                         <div className="space-y-3">
+                                            {tempProdId && !showResults && (
+                                                <div className="text-right rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-[11px] font-semibold text-indigo-700 dark:border-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-300">
+                                                    SISA STOK: {remainingStockForSelectedProduct} unit
+                                                </div>
+                                            )}
+
                                             <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
                                                 {[1, 5, 10, 25, 50, 100].map((num) => (
                                                     <button
                                                         key={num}
                                                         type="button"
-                                                        onClick={() => setTempQty(prev => (Number(prev) || 0) + num)}
+                                                        onClick={() => {
+                                                            setTempQty(prev => {
+                                                                const next = (Number(prev) || 0) + num;
+                                                                if (maxQtyForCurrentSelection === null) {
+                                                                    return next;
+                                                                }
+                                                                if (next > maxQtyForCurrentSelection) {
+                                                                    showAlert(
+                                                                        "Stok Tidak Cukup",
+                                                                        `Maksimal stok tersedia hanya ${maxQtyForCurrentSelection} unit.`,
+                                                                        "warning"
+                                                                    );
+                                                                    return maxQtyForCurrentSelection;
+                                                                }
+                                                                return next;
+                                                            });
+                                                        }}
                                                         className="flex-none px-4 py-2 rounded-xl text-xs font-bold bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border border-transparent hover:border-orange-500 hover:text-orange-600 transition-all"
                                                     >
                                                         +{num}
@@ -830,19 +862,24 @@ export default function VisitInputModal({
                                                         type="number"
                                                         placeholder="0"
                                                         value={tempQty || ''}
-                                                        onChange={(e) => setTempQty(Number(e.target.value))}
+                                                        max={maxQtyForCurrentSelection ?? undefined}
+                                                        onChange={(e) => {
+                                                            const parsed = Number(e.target.value);
+                                                            if (Number.isNaN(parsed)) {
+                                                                setTempQty(0);
+                                                                return;
+                                                            }
+
+                                                            if (maxQtyForCurrentSelection === null) {
+                                                                setTempQty(parsed);
+                                                                return;
+                                                            }
+
+                                                            setTempQty(Math.min(Math.max(parsed, 0), maxQtyForCurrentSelection));
+                                                        }}
                                                         className="w-full h-14 bg-zinc-100 dark:bg-zinc-900 border-none rounded-2xl text-center font-black text-lg focus:ring-2 focus:ring-orange-500"
                                                     />
                                                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-zinc-400">UNIT</span>
-                                                    {tempQty > 0 && (
-                                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-orange-500 bg-orange-50 dark:bg-orange-900/30 px-2 py-1 rounded-lg">
-                                                            {(() => {
-                                                                const selected = products.find(p => p.id === Number(tempProdId));
-                                                                const total = (selected?.price || 0) * tempQty;
-                                                                return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(total);
-                                                            })()}
-                                                        </div>
-                                                    )}
                                                 </div>
 
                                                 <button
@@ -851,7 +888,7 @@ export default function VisitInputModal({
                                                         setSearchQuery('');
                                                         setTempQty(0);
                                                     }}
-                                                    disabled={!tempProdId || tempQty <= 0}
+                                                    disabled={!tempProdId || tempQty <= 0 || (maxQtyForCurrentSelection !== null && tempQty > maxQtyForCurrentSelection)}
                                                     className="px-8 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-2xl font-black text-sm active:scale-95 transition-all shadow-lg shadow-blue-600/20"
                                                 >
                                                     TAMBAH
@@ -903,7 +940,7 @@ export default function VisitInputModal({
                                                                 )}
                                                             </div>
                                                             <div className="flex-1 min-w-0">
-                                                                <p className="text-xs font-bold truncate">{item.product_name}</p>
+                                                                <p className="text-xs font-bold wrap-break-word whitespace-normal">{item.product_name}</p>
                                                                 <div className="flex gap-2 mt-0.5">
                                                                     <span className="text-[10px] font-black text-blue-600 uppercase">{item.quantity} UNIT</span>
                                                                     <span className="text-[10px] font-black text-zinc-400 uppercase italic">/ {item.action_type}</span>
@@ -990,7 +1027,16 @@ export default function VisitInputModal({
                 {canSubmit && (
                     <div className="p-6 border-t border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-950">
                         <button
-                            onClick={onSubmit}
+                            onClick={() => {
+                                showAlert(
+                                    'Konfirmasi Kirim Laporan',
+                                    'Apakah Anda yakin ingin mengirim laporan kunjungan ini?',
+                                    'warning',
+                                    () => {
+                                        onSubmit();
+                                    }
+                                );
+                            }}
                             disabled={processing || isCompressing || !canSubmit}
                             className="w-full py-4 bg-linear-to-r from-blue-600 to-blue-700 text-white font-bold rounded-2xl shadow-xl shadow-blue-500/30 flex items-center justify-center gap-2 active:scale-95 transition-transform"
                         >
