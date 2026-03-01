@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { Link, usePage } from '@inertiajs/react';
-import { PhoneCall, LayoutGrid, MonitorCheck, RefreshCcwDot, Headset } from 'lucide-react';
+import { PhoneCall, LayoutGrid, MonitorCheck, RefreshCcwDot, Headset, LibraryBig, CalendarDays, Warehouse, Package, Users } from 'lucide-react';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -23,32 +23,106 @@ export function AppSidebar() {
     const isNativeApp = Capacitor.isNativePlatform();
     const safeAreaStyle = isNativeApp ? { paddingTop: 'env(safe-area-inset-top, 0px)' } : undefined;
 
-
-    const mainNavItems: NavItem[] = [
-        {
-            title: 'Dashboard',
-            href: `/${auth.user.role}/dashboard`,
-            icon: LayoutGrid,
-        },
-        ...(auth.user.role !== 'sales' ? [
+    // ===============================
+    // MENU CONFIG PER ROLE
+    // ===============================
+    const roleMenus: Record<
+        string,
+        (role: string, userId: number | string) => NavItem[]
+    > = {
+        default: (role) => [
             {
-                title: 'Monitoring Teams',
-                href: `/${auth.user.role}/monitoring-team`,
-                icon: MonitorCheck,
+                title: 'Dashboard',
+                href: `/${role}/dashboard`,
+                icon: LayoutGrid,
             },
-        ] : [
+        ],
+
+        sales: (role, userId) => [
             {
                 title: 'Monitoring Performa',
-                href: `/${auth.user.role}/monitoring-record/${auth.user.id}`,
+                href: `/${role}/monitoring-record/${userId}`,
                 icon: MonitorCheck,
             },
-        ]),
+        ],
+
+        supervisor: (role) => [
+            {
+                title: 'Monitoring Teams',
+                href: `/${role}/monitoring-team`,
+                icon: MonitorCheck,
+            },
+        ],
+
+        stockist: (role, userId) => [
+            {
+                title: 'Monitoring Performa',
+                href: `/${role}/monitoring-record/${userId}`,
+                icon: MonitorCheck,
+            },
+        ],
+    };
+
+    // ===============================
+    // GLOBAL MENU (SELALU ADA)
+    // ===============================
+    const globalMenus: NavItem[] = [
         {
             title: 'Notifikasi',
-            href: `/notifications`,
+            href: '/notifications',
             icon: Headset,
         },
+        {
+            title: 'Admin Tools (Dev)',
+            href: '#',
+            icon: LibraryBig,
+            children: [
+                {
+                    title: 'Users',
+                    href: '/settings/users',
+                    icon: Users,
+                },
+                {
+                    title: 'Products',
+                    href: '/settings/products',
+                    icon: Package,
+                },
+                {
+                    title: 'Stockist',
+                    href: '/settings/stockist',
+                    icon: Warehouse,
+                },
+                {
+                    title: 'Workdays',
+                    href: '/settings/workday',
+                    icon: CalendarDays,
+                },
+            ],
+        },
     ];
+
+    // ===============================
+    // GENERATOR FUNCTION
+    // ===============================
+    function generateMainNav(auth: SharedData['auth']): NavItem[] {
+        const role = auth.user.role as string;
+        const userId = auth.user.id;
+
+        const defaultMenu = roleMenus.default(role, userId);
+        const specificMenu =
+            roleMenus[role as string]?.(role, userId) ?? [];
+
+        return [
+            ...defaultMenu,
+            ...specificMenu,
+            ...globalMenus,
+        ];
+    }
+
+    // ===============================
+    // FINAL RESULT (GANTIKAN YANG LAMA)
+    // ===============================
+    const mainNavItems: NavItem[] = generateMainNav(auth);
 
 
     const footerNavItems: NavItem[] = [

@@ -193,8 +193,8 @@ export default function SalesNotifications({ notifications, unreadCount }: Props
         <Layout breadcrumbs={breadcrumbs}>
             <Head title="Notifikasi" />
 
-            <div className="min-h-screen bg-blue-50/20 dark:bg-blue-950/10 pb-20 pt-8 px-4 sm:px-6 lg:px-8">
-                <div className="mx-auto max-w-4xl space-y-6">
+            <div className="min-h-screen space-y-8 bg-blue-50/20 dark:bg-blue-950/10 pb-20 pt-8 px-4 sm:px-6 lg:px-8">
+                <div className="mx-auto max-w-8xl space-y-6">
                     <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5 dark:bg-slate-900 dark:ring-white/10">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
@@ -239,14 +239,14 @@ export default function SalesNotifications({ notifications, unreadCount }: Props
                                 </button>
 
                                 {/* {isAdmin && ( */}
-                                    <button
-                                        type="button"
-                                        onClick={() => handleSendTestPush('all_users')}
-                                        className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
-                                    >
-                                        <Send size={16} />
-                                        Tes Push Semua User
-                                    </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleSendTestPush('all_users')}
+                                    className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                                >
+                                    <Send size={16} />
+                                    Tes Push Semua User
+                                </button>
                                 {/* )} */}
 
                                 <button

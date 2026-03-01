@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import FormModalProduct from '@/components/settings/products/FormModalProduct';
 import TableWithPaginationProduct from '@/components/settings/products/TableWithPaginationProduct';
 import AppLayout from '@/layouts/app-layout';
-import SettingsLayout from '@/layouts/settings/layout';
 import type { BreadcrumbItem } from '@/types';
 
 interface ProductRow {
@@ -195,94 +194,85 @@ export default function ProductSettings() {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Product Settings" />
 
-            <SettingsLayout>
-                <div className="space-y-8">
-                    {(flash?.success || flash?.error || flash?.warning || flash?.info) && (
-                        <div
-                            className={`rounded-xl border px-4 py-3 text-sm ${
-                                flash?.success
-                                    ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
-                                    : flash?.error
-                                      ? 'border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-700 dark:bg-rose-900/20 dark:text-rose-300'
-                                      : 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-900/20 dark:text-blue-300'
+            <div className="min-h-screen space-y-8 bg-blue-50/20 dark:bg-blue-950/10 pb-20 pt-8 px-4 sm:px-6 lg:px-8">
+                {(flash?.success || flash?.error || flash?.warning || flash?.info) && (
+                    <div
+                        className={`rounded-xl border px-4 py-3 text-sm ${flash?.success
+                            ? 'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
+                            : flash?.error
+                                ? 'border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-700 dark:bg-rose-900/20 dark:text-rose-300'
+                                : 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700 dark:bg-blue-900/20 dark:text-blue-300'
                             }`}
-                        >
-                            {flash?.success || flash?.error || flash?.warning || flash?.info}
-                        </div>
-                    )}
+                    >
+                        {flash?.success || flash?.error || flash?.warning || flash?.info}
+                    </div>
+                )}
 
-                    <section>
-                        <div className="mb-8 rounded-2xl border border-gray-200 bg-white p-6 shadow-lg dark:border-gray-800 dark:bg-gray-900 md:p-8">
-                            <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
-                                <div>
-                                    <h1 className="flex items-center gap-3 text-2xl font-bold text-gray-900 dark:text-white md:text-3xl">
-                                        <Package className="h-8 w-8 text-indigo-600 md:h-10 md:w-10" />
-                                        Product Management
-                                    </h1>
-                                    <p className="mt-2 text-gray-600 dark:text-gray-400">Kelola data produk di sistem (CRUD dengan upload gambar).</p>
-                                </div>
+                <section>
+                    <div className="mb-8 rounded-2xl border border-gray-200 bg-white p-6 shadow-lg dark:border-gray-800 dark:bg-gray-900 md:p-8">
+                        <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
+                            <div>
+                                <h1 className="flex items-center gap-3 text-2xl font-bold text-gray-900 dark:text-white md:text-3xl">
+                                    <Package className="h-8 w-8 text-indigo-600 md:h-10 md:w-10" />
+                                    Product Management
+                                </h1>
+                                <p className="mt-2 text-gray-600 dark:text-gray-400">Kelola data produk di sistem (CRUD dengan upload gambar).</p>
                             </div>
                         </div>
+                    </div>
 
-                        <div className="mb-6">
-                            <div className="flex flex-col gap-4 md:flex-row md:items-end">
-                                <div className="flex-1">
-                                    <label className="mb-2 block text-sm font-semibold text-gray-900 dark:text-white">
-                                        Cari Produk
-                                    </label>
-                                    <div className="relative">
-                                        <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                                        <input
-                                            type="text"
-                                            placeholder="Cari nama, SKU, atau deskripsi..."
-                                            value={searchInput}
-                                            onChange={(e) => setSearchInput(e.target.value)}
-                                            className="w-full rounded-xl border border-gray-300 bg-white py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800"
-                                        />
-                                    </div>
+                    <div className="mb-6">
+                        <div className="flex flex-col gap-4 md:flex-row md:items-end">
+                            <div className="flex-1">
+                                <div className="relative">
+                                    <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Cari nama, SKU, atau deskripsi..."
+                                        value={searchInput}
+                                        onChange={(e) => setSearchInput(e.target.value)}
+                                        className="w-full rounded-xl border border-gray-300 bg-white py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800"
+                                    />
                                 </div>
+                            </div>
 
-                                <div className="w-full md:w-56">
-                                    <label className="mb-2 block text-sm font-semibold text-gray-900 dark:text-white">
-                                        Filter Kategori
-                                    </label>
-                                    <select
-                                        value={categoryFilter || ''}
-                                        onChange={(e) => {
-                                            const value = e.target.value || undefined;
-                                            setCategoryFilter(value);
-                                            updateFilters({ category: value, page: 1 });
-                                        }}
-                                        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800"
-                                    >
-                                        <option value="">Semua Kategori</option>
-                                        {categories.map((cat) => (
-                                            <option key={cat} value={cat}>
-                                                {cat}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <button
-                                    onClick={() => openCreateModal()}
-                                    className="flex items-center gap-2 rounded-xl bg-linear-to-br from-indigo-600 to-purple-600 px-6 py-3 font-semibold text-white shadow-lg transition hover:from-indigo-700 hover:to-purple-700 md:py-4"
+                            <div className="w-full md:w-56">
+                                <select
+                                    value={categoryFilter || ''}
+                                    onChange={(e) => {
+                                        const value = e.target.value || undefined;
+                                        setCategoryFilter(value);
+                                        updateFilters({ category: value, page: 1 });
+                                    }}
+                                    className="w-full rounded-xl border border-gray-300 bg-white py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800"
                                 >
-                                    <Plus className="h-5 w-5" />
-                                    Tambah Produk
-                                </button>
+                                    <option value="">Semua Kategori</option>
+                                    {categories.map((cat) => (
+                                        <option key={cat} value={cat}>
+                                            {cat}
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
-                        </div>
 
-                        <TableWithPaginationProduct
-                            products={products}
-                            onEdit={openEditModal}
-                            onDelete={handleDeleteProduct}
-                            updateFilters={(payload) => updateFilters(payload)}
-                        />
-                    </section>
-                </div>
-            </SettingsLayout>
+                            <button
+                                onClick={() => openCreateModal()}
+                                className="flex items-center gap-2 rounded-xl bg-linear-to-br from-indigo-600 to-purple-600 px-6 py-3 font-semibold text-white shadow-lg transition hover:from-indigo-700 hover:to-purple-700 md:py-4"
+                            >
+                                <Plus className="h-5 w-5" />
+                                Tambah Produk
+                            </button>
+                        </div>
+                    </div>
+
+                    <TableWithPaginationProduct
+                        products={products}
+                        onEdit={openEditModal}
+                        onDelete={handleDeleteProduct}
+                        updateFilters={(payload) => updateFilters(payload)}
+                    />
+                </section>
+            </div>
 
             <FormModalProduct
                 isOpen={showFormModal}

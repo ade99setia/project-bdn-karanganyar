@@ -32,26 +32,26 @@ const sidebarNavItems: NavItem[] = [
         href: editAppearance(),
         icon: null,
     },
-    {
-        title: 'Users',
-        href: '/settings/users',
-        icon: null,
-    },
-    {
-        title: 'Products',
-        href: '/settings/products',
-        icon: null,
-    },
-    {
-        title: 'Stockist',
-        href: '/settings/stockist',
-        icon: null,
-    },
-    {
-        title: 'Workdays',
-        href: '/settings/workday',
-        icon: null,
-    },
+    // {
+    //     title: 'Users',
+    //     href: '/settings/users',
+    //     icon: null,
+    // },
+    // {
+    //     title: 'Products',
+    //     href: '/settings/products',
+    //     icon: null,
+    // },
+    // {
+    //     title: 'Stockist',
+    //     href: '/settings/stockist',
+    //     icon: null,
+    // },
+    // {
+    //     title: 'Workdays',
+    //     href: '/settings/workday',
+    //     icon: null,
+    // },
 ];
 
 export default function SettingsLayout({ children }: PropsWithChildren) {

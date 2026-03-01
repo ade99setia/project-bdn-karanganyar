@@ -114,7 +114,7 @@ export default function ProductMultiSelect({ items, value, onChange, label, plac
                             value={query}
                             onChange={(e) => { setQuery(e.target.value); setShowResults(true); if (typeof (onQueryChange) === 'function') onQueryChange(e.target.value); }}
                             onFocus={() => setShowResults(true)}
-                            className="flex-1 bg-transparent outline-none min-w-0 text-sm"
+                            className="flex-1 self-center h-8 leading-8 bg-transparent outline-none min-w-0 text-sm"
                             style={{ minWidth: 120 }}
                         />
                     </div>

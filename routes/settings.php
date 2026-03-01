@@ -34,10 +34,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('settings/two-factor', [TwoFactorAuthenticationController::class, 'show'])
         ->name('two-factor.show');
 
+    // User Management Routes    
     Route::get('settings/users', [UserManagementController::class, 'index'])
         ->name('settings.users.index');
-    Route::get('settings/workday', [UserManagementController::class, 'workday'])
-        ->name('settings.workday.index');
     Route::post('settings/users', [UserManagementController::class, 'store'])
         ->name('settings.users.store');
     Route::post('settings/roles', [UserManagementController::class, 'storeRole'])
@@ -50,8 +49,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('settings.users.update');
     Route::delete('settings/users/{user}', [UserManagementController::class, 'destroy'])
         ->name('settings.users.destroy');
+    
+    // Workday Configuration Routes
+    Route::get('settings/workday', [UserManagementController::class, 'workday'])
+        ->name('settings.workday.index');
     Route::put('settings/workday', [UserManagementController::class, 'updateWorkday'])
         ->name('settings.workday.update');
+
+    // User Settings Configuration Routes  
     Route::put('settings/users/config', [UserManagementController::class, 'updateUserSettings'])
         ->name('settings.users.config.update');
 
@@ -65,6 +70,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('settings/products/{product}', [ProductManagementController::class, 'destroy'])
         ->name('settings.products.destroy');
 
+    // Stockist Management Routes
     Route::get('settings/stockist', [StockistManagementController::class, 'index'])
         ->name('settings.stockist.index');
     Route::post('settings/warehouses', [StockistManagementController::class, 'storeWarehouse'])
