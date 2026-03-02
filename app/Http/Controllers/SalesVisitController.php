@@ -30,7 +30,7 @@ class SalesVisitController extends Controller
             'products'               => 'required_if:activity_type,pengiriman|array|min:1',
             'products.*.product_id'  => 'required|exists:products,id',
             'products.*.quantity'    => 'required|integer|min:1',
-            'products.*.action_type' => 'required|string|in:terjual,retur,sold,returned',
+            'products.*.action_type' => 'required|string|in:terjual,retur',
             'products.*.price'       => 'nullable|integer|min:0',
             'products.*.value'       => 'nullable|integer',
             'products.*.note'        => 'nullable|string',
@@ -119,21 +119,17 @@ class SalesVisitController extends Controller
                     $warehouseId = $user->warehouse_id;
 
                     foreach ($validated['products'] as $item) {
-                        $normalizedAction = match ($item['action_type']) {
-                            'sold' => 'terjual',
-                            'returned' => 'retur',
-                            default => $item['action_type'],
-                        };
+                        $actionType = $item['action_type'];
 
                         $price = (int) ($item['price'] ?? 0);
                         $calculatedValue = $price * (int) $item['quantity'];
-                        $signedValue = $normalizedAction === 'retur' ? -abs($calculatedValue) : abs($calculatedValue);
+                        $signedValue = $actionType === 'retur' ? -abs($calculatedValue) : abs($calculatedValue);
 
                         $visit->products()->attach($item['product_id'], [
                             'quantity'    => $item['quantity'],
                             'price'       => $price,
                             'value'       => (int) ($item['value'] ?? $signedValue),
-                            'action_type' => $normalizedAction,
+                            'action_type' => $actionType,
                             'note'        => $item['note'] ?? null,
                             'created_at'  => now(),
                             'updated_at'  => now(),
@@ -160,7 +156,7 @@ class SalesVisitController extends Controller
 
                         $quantity = (int) $item['quantity'];
 
-                        if ($normalizedAction === 'terjual') {
+                        if ($actionType === 'terjual') {
                             if ($stock->quantity < $quantity) {
                                 throw new \Exception("Stok tidak cukup untuk produk ID {$item['product_id']}");
                             }
@@ -177,7 +173,7 @@ class SalesVisitController extends Controller
                                 'reference' => 'VISIT-' . $visit->id,
                                 'note' => $item['note'] ?? null,
                             ]);
-                        } elseif ($normalizedAction === 'retur') {
+                        } elseif ($actionType === 'retur') {
                             $stock->increment('quantity', $quantity);
 
                             StockMovement::create([

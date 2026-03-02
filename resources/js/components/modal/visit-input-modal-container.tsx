@@ -103,6 +103,7 @@ export default function VisitInputModalContainer({
     const [tempAction, setTempAction] = useState<string>('terjual');
     const [searchQuery, setSearchQuery] = useState('');
     const [showResults, setShowResults] = useState(false);
+    const submitLockRef = useRef(false);
 
     useEffect(() => {
         if (!photo) {
@@ -297,7 +298,6 @@ export default function VisitInputModalContainer({
         const selectedProduct = products.find(p => p.id === Number(tempProdId));
         if (!selectedProduct) return;
 
-        const normalizedAction = tempAction === 'sold' ? 'terjual' : tempAction;
         const requestedQty = Math.max(0, Number(tempQty) || 0);
 
         if (requestedQty <= 0) {
@@ -309,10 +309,10 @@ export default function VisitInputModalContainer({
             return;
         }
 
-        if (normalizedAction === 'terjual') {
+        if (tempAction === 'terjual') {
             const stockQty = Math.max(0, Number(selectedProduct.stock_quantity ?? 0));
             const soldQtyInCart = cart
-                .filter(c => c.product_id === Number(tempProdId) && (c.action_type === 'terjual' || c.action_type === 'sold'))
+            .filter(c => c.product_id === Number(tempProdId) && c.action_type === 'terjual')
                 .reduce((sum, c) => sum + (Number(c.quantity) || 0), 0);
 
             if ((soldQtyInCart + requestedQty) > stockQty) {
@@ -348,7 +348,7 @@ export default function VisitInputModalContainer({
         setTempQty(1);
     };
 
-    const isNegativeAction = (actionType: string) => actionType === 'retur' || actionType === 'returned';
+    const isNegativeAction = (actionType: string) => actionType === 'retur';
 
     const selectedProductForInput = tempProdId
         ? products.find(p => p.id === Number(tempProdId))
@@ -358,7 +358,7 @@ export default function VisitInputModalContainer({
 
     const soldQtyInCartForSelectedProduct = tempProdId
         ? cart
-            .filter(item => item.product_id === Number(tempProdId) && (item.action_type === 'terjual' || item.action_type === 'sold'))
+            .filter(item => item.product_id === Number(tempProdId) && item.action_type === 'terjual')
             .reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
         : 0;
 
@@ -457,6 +457,8 @@ export default function VisitInputModalContainer({
     };
 
     const submitVisitReport = async () => {
+        if (submitLockRef.current || processing) return;
+
         const isKunjungan = visitType === 'kunjungan';
         const isPengiriman = visitType === 'pengiriman';
 
@@ -496,10 +498,12 @@ export default function VisitInputModalContainer({
             return;
         }
 
+        submitLockRef.current = true;
         setProcessing(true);
         const pos = await getVerifiedLocation();
 
         if (!pos) {
+            submitLockRef.current = false;
             setProcessing(false);
             return;
         }
@@ -522,6 +526,7 @@ export default function VisitInputModalContainer({
                         'Nomor telepon harus diawali dengan "628" dan memiliki panjang 11-14 digit.',
                         'error'
                     );
+                    submitLockRef.current = false;
                     setProcessing(false);
                     return;
                 }
@@ -552,9 +557,13 @@ export default function VisitInputModalContainer({
                     resetFormState();
                     onClose();
                 },
-                onFinish: () => setProcessing(false),
+                onFinish: () => {
+                    submitLockRef.current = false;
+                    setProcessing(false);
+                },
             });
         } catch {
+            submitLockRef.current = false;
             setProcessing(false);
             showAlert(
                 'Gagal Mengambil Lokasi',

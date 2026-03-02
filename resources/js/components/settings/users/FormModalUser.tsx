@@ -197,7 +197,7 @@ export default function FormModalUser({
 
                         <div>
                             <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Password {isEdit ? '(kosongkan jika tidak diganti)' : ''}
+                                Password {isEdit ? '(kosongkan jika tidak diganti)' : '(default: bdn01234)'}
                             </label>
                             <input
                                 name="password"
@@ -205,7 +205,7 @@ export default function FormModalUser({
                                 value={form.password}
                                 onChange={onChange}
                                 required={!isEdit}
-                                placeholder={isEdit ? '••••••••' : 'Minimal 8 karakter'}
+                                placeholder={isEdit ? '••••••••' : 'bdn01234'}
                                 className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800"
                             />
                         </div>

@@ -10,7 +10,7 @@ import {
     AlertCircle,
     X
 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem } from '@/types';
 
@@ -46,6 +46,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 export default function SelectMonitoring({ teams }: SelectMonitoringProps) {
     const [searchQuery, setSearchQuery] = useState('');
+    const normalizedQuery = searchQuery.toLowerCase().trim();
 
     const handleTeamClick = (teamId: number) => {
         router.visit(`/supervisor/monitoring-record/${teamId}`, {
@@ -55,26 +56,48 @@ export default function SelectMonitoring({ teams }: SelectMonitoringProps) {
     };
 
     // --- LOGIC PENCARIAN UTAMA ---
-    const filteredTeams = teams.filter((team) => {
-        // 1. Jika search kosong, kembalikan TRUE (tampilkan semua) agar tidak nge-bug saat delete
-        if (!searchQuery) return true;
+    const filteredTeams = useMemo(() => {
+        if (!normalizedQuery) return teams;
 
-        const query = searchQuery.toLowerCase().trim();
+        const scoredTeams = teams
+            .map((team) => {
+                const teamName = team.name.toLowerCase();
+                const supervisorName = team.supervisor.toLowerCase();
+                const idText = String(team.id);
+                const memberMatches = team.members.filter((member) => member.name.toLowerCase().includes(normalizedQuery));
 
-        // 2. Cek Nama Tim, Supervisor, dan ID
-        const matchBasic =
-            team.name.toLowerCase().includes(query) ||
-            team.supervisor.toLowerCase().includes(query) ||
-            team.id.toString().toLowerCase().includes(query);
+                const teamStartsWith = teamName.startsWith(normalizedQuery);
+                const supervisorStartsWith = supervisorName.startsWith(normalizedQuery);
+                const memberStartsWithCount = memberMatches.filter((member) => member.name.toLowerCase().startsWith(normalizedQuery)).length;
 
-        // 3. Cek Nama ANGGOTA (Looping di dalam array members)
-        const matchMembers = team.members.some(member =>
-            member.name.toLowerCase().includes(query)
-        );
+                const matchBasic =
+                    teamName.includes(normalizedQuery)
+                    || supervisorName.includes(normalizedQuery)
+                    || idText.includes(normalizedQuery);
 
-        // 4. Return true jika salah satu kondisi terpenuhi
-        return matchBasic || matchMembers;
-    });
+                const hasAnyMatch = matchBasic || memberMatches.length > 0;
+                if (!hasAnyMatch) return null;
+
+                const score =
+                    (teamStartsWith ? 120 : 0)
+                    + (supervisorStartsWith ? 100 : 0)
+                    + (memberStartsWithCount * 80)
+                    + (teamName.includes(normalizedQuery) ? 30 : 0)
+                    + (supervisorName.includes(normalizedQuery) ? 25 : 0)
+                    + (idText.includes(normalizedQuery) ? 15 : 0)
+                    + (memberMatches.length * 20);
+
+                return { team, score, memberMatchesCount: memberMatches.length };
+            })
+            .filter((item): item is { team: Team; score: number; memberMatchesCount: number } => item !== null)
+            .sort((a, b) => {
+                if (b.score !== a.score) return b.score - a.score;
+                if (b.memberMatchesCount !== a.memberMatchesCount) return b.memberMatchesCount - a.memberMatchesCount;
+                return a.team.name.localeCompare(b.team.name);
+            });
+
+        return scoredTeams.map((item) => item.team);
+    }, [teams, normalizedQuery]);
 
     // --- ANIMATION VARIANTS ---
     const containerVariants = {
@@ -164,6 +187,18 @@ export default function SelectMonitoring({ teams }: SelectMonitoringProps) {
                             >
                                 <AnimatePresence mode='popLayout'>
                                     {filteredTeams.map((team) => (
+                                        (() => {
+                                            const matchedMembers = normalizedQuery
+                                                ? team.members.filter((member) => member.name.toLowerCase().includes(normalizedQuery))
+                                                : [];
+                                            const displayedMembers = normalizedQuery
+                                                ? (matchedMembers.length > 0 ? matchedMembers.slice(0, 4) : team.members.slice(0, 2))
+                                                : team.members.slice(0, 2);
+                                            const hiddenMembersCount = normalizedQuery
+                                                ? Math.max(0, matchedMembers.length - displayedMembers.length)
+                                                : Math.max(0, team.members.length - 2);
+
+                                            return (
                                         <motion.div
                                             key={team.id}
                                             layout
@@ -227,8 +262,8 @@ export default function SelectMonitoring({ teams }: SelectMonitoringProps) {
                                                                 Sales
                                                             </div>
                                                             <div className="space-y-2">
-                                                                {team.members.slice(0, 2).map((member, idx) => (
-                                                                    <div key={idx} className="flex items-center justify-between text-sm px-2">
+                                                                {displayedMembers.map((member) => (
+                                                                    <div key={member.id} className="flex items-center justify-between text-sm px-2">
                                                                         <div className="flex items-center gap-3">
                                                                             <div className="w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600" />
                                                                             {/* Highlight Member jika cocok query */}
@@ -244,9 +279,9 @@ export default function SelectMonitoring({ teams }: SelectMonitoringProps) {
 
                                                     {/* Footer */}
                                                     <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                                                        {team.members.length > 2 && (
+                                                        {hiddenMembersCount > 0 && (
                                                             <div className="w-8 h-8 rounded-full border-2 border-white dark:border-slate-900 bg-slate-200 flex items-center justify-center text-[10px] text-slate-500">
-                                                                +{team.members.length - 2}
+                                                                +{hiddenMembersCount}
                                                             </div>
                                                         )}
                                                         <div className="text-xs text-slate-500 font-medium ml-auto">
@@ -263,6 +298,8 @@ export default function SelectMonitoring({ teams }: SelectMonitoringProps) {
                                                 </div>
                                             </div>
                                         </motion.div>
+                                            );
+                                        })()
                                     ))}
                                 </AnimatePresence>
                             </motion.div>

@@ -14,10 +14,14 @@ use App\Models\SalesVisitProduct;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
+use Throwable;
 
 class SupervisorController extends Controller
 {
-    public function dashboard()
+    public function dashboard(Request $request)
     {
         $user = Auth::user();
 
@@ -25,106 +29,81 @@ class SupervisorController extends Controller
             abort(403, 'Akses tidak valid.');
         }
 
-        $cacheKey = 'supervisor_dashboard:' . $user->id;
+        $filterType = $request->query('filterType', 'single');
+        $filterType = in_array($filterType, ['single', 'range'], true) ? $filterType : 'single';
 
-        if (request()->boolean('refresh')) {
+        $selectedDate = $this->parseDateString($request->query('date', now()->toDateString()));
+        $startDate = $this->parseDateString($request->query('startDate', $selectedDate));
+        $endDate = $this->parseDateString($request->query('endDate', $selectedDate));
+
+        if ($filterType === 'single') {
+            $startDate = $selectedDate;
+            $endDate = $selectedDate;
+        }
+
+        if ($startDate > $endDate) {
+            [$startDate, $endDate] = [$endDate, $startDate];
+        }
+
+        $cacheKey = implode(':', [
+            'supervisor_dashboard',
+            $user->id,
+            $filterType,
+            $startDate,
+            $endDate,
+        ]);
+
+        if ($request->boolean('refresh')) {
             Cache::forget($cacheKey);
         }
 
-        $dashboardData = Cache::remember($cacheKey, now()->addMinutes(2), function () use ($user) {
-            return $this->computeDummyDashboardData($user);
+        $dashboardData = Cache::remember($cacheKey, now()->addMinutes(2), function () use ($user, $filterType, $selectedDate, $startDate, $endDate) {
+            try {
+                return $this->computeDashboardData($user, [
+                    'filterType' => $filterType,
+                    'selectedDate' => $selectedDate,
+                    'startDate' => $startDate,
+                    'endDate' => $endDate,
+                ]);
+            } catch (Throwable $exception) {
+                report($exception);
+
+                return $this->buildEmptyDashboardData([
+                    'filterType' => $filterType,
+                    'selectedDate' => $selectedDate,
+                    'startDate' => $startDate,
+                    'endDate' => $endDate,
+                ]);
+            }
         });
 
         return Inertia::render('supervisor/dashboard', $dashboardData);
     }
 
-    private function computeDummyDashboardData(User $user)
+    private function computeDashboardData(User $user, array $filters)
     {
-        // Simulasi data sales untuk progress table
-        $dummySales = [
-            ['id' => 1, 'name' => 'Budi Santoso', 'visits_today' => 5, 'visits_month' => 120, 'attendance' => true, 'fake' => 0],
-            ['id' => 2, 'name' => 'Ani Wijaya', 'visits_today' => 8, 'visits_month' => 145, 'attendance' => true, 'fake' => 1],
-            ['id' => 3, 'name' => 'Siti Aminah', 'visits_today' => 3, 'visits_month' => 90, 'attendance' => true, 'fake' => 0],
-            ['id' => 4, 'name' => 'Rian Hidayat', 'visits_today' => 0, 'visits_month' => 110, 'attendance' => false, 'fake' => 0],
-            ['id' => 5, 'name' => 'Dedi Kurniawan', 'visits_today' => 7, 'visits_month' => 130, 'attendance' => true, 'fake' => 0],
-        ];
+        $filterType = $filters['filterType'] ?? 'single';
+        $selectedDate = $this->parseDateString($filters['selectedDate'] ?? now()->toDateString());
+        $startDateValue = $this->parseDateString($filters['startDate'] ?? $selectedDate);
+        $endDateValue = $this->parseDateString($filters['endDate'] ?? $selectedDate);
 
-        $progressPerSales = collect($dummySales)->map(function ($s, $index) {
-            $target = 8;
-            $achievement = round(($s['visits_today'] / $target) * 100, 2);
-            return [
-                'no' => $index + 1,
-                'id' => $s['id'],
-                'name' => $s['name'],
-                'avatar' => null,
-                'attendance_today' => $s['attendance'],
-                'visits_today' => $s['visits_today'],
-                'visits_month' => $s['visits_month'],
-                'customers_touched' => rand(20, 50),
-                'fake_gps_today' => $s['fake'],
-                'target_daily' => $target,
-                'achievement_percent' => min(100, $achievement),
-                'achievement_raw_percent' => $achievement,
-                'last_visit_at' => now()->subMinutes(rand(10, 300))->toISOString(),
-            ];
-        })->all();
+        if ($filterType === 'single') {
+            $periodStart = Carbon::parse($selectedDate)->startOfDay();
+            $periodEnd = Carbon::parse($selectedDate)->endOfDay();
+        } else {
+            $periodStart = Carbon::parse($startDateValue)->startOfDay();
+            $periodEnd = Carbon::parse($endDateValue)->endOfDay();
 
-        // Data Breakdown Aktivitas (Pie Chart)
-        $activityBreakdown = [
-            ['label' => 'Routine Visit', 'value' => 45, 'percent' => 45, 'color' => 'bg-blue-500'],
-            ['label' => 'New Prospect', 'value' => 25, 'percent' => 25, 'color' => 'bg-emerald-500'],
-            ['label' => 'Complaint Handling', 'value' => 15, 'percent' => 15, 'color' => 'bg-purple-500'],
-            ['label' => 'Payment Collection', 'value' => 10, 'percent' => 10, 'color' => 'bg-amber-500'],
-            ['label' => 'Other', 'value' => 5, 'percent' => 5, 'color' => 'bg-cyan-500'],
-        ];
+            if ($periodStart->gt($periodEnd)) {
+                [$periodStart, $periodEnd] = [$periodEnd->copy()->startOfDay(), $periodStart->copy()->endOfDay()];
+            }
+        }
 
-        // Data Produk (Bar Chart / List)
-        $productActionBreakdown = [
-            ['label' => 'Direct Sell', 'value' => 150, 'percent' => 50, 'color' => 'bg-orange-500'],
-            ['label' => 'Stock Check', 'value' => 80, 'percent' => 26.67, 'color' => 'bg-green-500'],
-            ['label' => 'Display Setup', 'value' => 40, 'percent' => 13.33, 'color' => 'bg-sky-500'],
-            ['label' => 'Sampling', 'value' => 30, 'percent' => 10, 'color' => 'bg-rose-500'],
-        ];
-
-        // Recent Visits
-        $recentVisits = [
-            ['id' => 101, 'sales_name' => 'Budi Santoso', 'customer_name' => 'Toko Maju Jaya', 'activity_type' => 'routine_visit', 'visited_at' => now()->subMinutes(5)->toISOString(), 'is_fake_gps' => false],
-            ['id' => 102, 'sales_name' => 'Ani Wijaya', 'customer_name' => 'Indo Market', 'activity_type' => 'new_prospect', 'visited_at' => now()->subMinutes(15)->toISOString(), 'is_fake_gps' => true],
-            ['id' => 103, 'sales_name' => 'Siti Aminah', 'customer_name' => 'Apotek Sehat', 'activity_type' => 'payment_collection', 'visited_at' => now()->subMinutes(45)->toISOString(), 'is_fake_gps' => false],
-            ['id' => 104, 'sales_name' => 'Dedi Kurniawan', 'customer_name' => 'Warung Pojok', 'activity_type' => 'routine_visit', 'visited_at' => now()->subHour()->toISOString(), 'is_fake_gps' => false],
-        ];
-
-        return [
-            'stats' => [
-                'total_sales' => 5,
-                'total_products' => 24,
-                'total_customers' => 150,
-                'customers_visited_by_team' => 85,
-                'visits_today' => 23,
-                'visits_this_month' => 495,
-                'attendance_present_today' => 4,
-                'fake_gps_today' => 1,
-                'target_visit_today' => 40, // 5 sales * 8
-                'target_visit_month' => 800,
-                'visit_completion_today' => 57.5,
-                'visit_completion_month' => 61.8,
-            ],
-            'activityBreakdown' => $activityBreakdown,
-            'productActionBreakdown' => $productActionBreakdown,
-            'progressPerSales' => $progressPerSales,
-            'recentVisits' => $recentVisits,
-        ];
-    }
-
-    private function computeDashboardData(User $user)
-    {
         $user->loadMissing(['role:id,name', 'employee:id,user_id']);
 
-        $today = now()->toDateString();
-        $todayStart = now()->copy()->startOfDay();
-        $tomorrowStart = now()->copy()->addDay()->startOfDay();
-        $monthStart = now()->copy()->startOfMonth()->startOfDay();
-        $monthEnd = now()->copy()->endOfDay();
+        $todayStart = $periodStart->copy();
+        $monthStart = $periodEnd->copy()->startOfMonth()->startOfDay();
+        $monthEnd = $periodEnd->copy()->endOfDay();
 
         // Get sales users for the current user
         $salesQuery = User::query()
@@ -157,64 +136,115 @@ class SupervisorController extends Controller
         $productActionBreakdown = [];
         $progressPerSales = [];
         $recentVisits = [];
+        $collectionStatusVisit = 0;
+        $collectionStatusDelivery = 0;
+        $salesValue = 0;
+        $returnValue = 0;
+        $netProfitValue = 0;
 
         if ($salesUserIds->isNotEmpty()) {
-            // Get visit stats efficiently in one query
-            $visitStats = SalesVisit::query()
+            $perSalesStats = SalesVisit::query()
                 ->whereIn('user_id', $salesUserIds)
                 ->selectRaw('
-                    SUM(CASE WHEN visited_at >= ? AND visited_at < ? THEN 1 ELSE 0 END) as visits_today,
-                    SUM(CASE WHEN visited_at BETWEEN ? AND ? THEN 1 ELSE 0 END) as visits_this_month,
-                    SUM(CASE WHEN visited_at >= ? AND visited_at < ? AND is_fake_gps = 1 THEN 1 ELSE 0 END) as fake_gps_today
-                ', [$todayStart, $tomorrowStart, $monthStart, $monthEnd, $todayStart, $tomorrowStart])
-                ->first();
+                    user_id,
+                    SUM(CASE WHEN visited_at BETWEEN ? AND ? THEN 1 ELSE 0 END) as visits_today,
+                    SUM(CASE WHEN visited_at BETWEEN ? AND ? AND is_fake_gps = 1 THEN 1 ELSE 0 END) as fake_gps_today,
+                    SUM(CASE WHEN visited_at BETWEEN ? AND ? THEN 1 ELSE 0 END) as visits_month,
+                    COUNT(DISTINCT CASE WHEN visited_at BETWEEN ? AND ? THEN customer_id END) as customers_touched,
+                    MAX(CASE WHEN visited_at BETWEEN ? AND ? THEN visited_at END) as last_visit_at
+                ', [
+                    $todayStart,
+                    $periodEnd,
+                    $todayStart,
+                    $periodEnd,
+                    $monthStart,
+                    $monthEnd,
+                    $monthStart,
+                    $monthEnd,
+                    $monthStart,
+                    $monthEnd,
+                ])
+                ->groupBy('user_id')
+                ->get()
+                ->keyBy('user_id');
 
-            $visitsToday = (int) ($visitStats?->visits_today ?? 0);
-            $visitsThisMonth = (int) ($visitStats?->visits_this_month ?? 0);
-            $fakeGpsToday = (int) ($visitStats?->fake_gps_today ?? 0);
+            $visitsToday = (int) $perSalesStats->sum('visits_today');
+            $visitsThisMonth = (int) $perSalesStats->sum('visits_month');
+            $fakeGpsToday = (int) $perSalesStats->sum('fake_gps_today');
 
             // Get distinct customers
             $customersVisitedByTeam = SalesVisit::query()
                 ->whereIn('user_id', $salesUserIds)
-                ->whereBetween('visited_at', [$monthStart, $monthEnd])
+                ->whereBetween('visited_at', [$todayStart, $periodEnd])
                 ->whereNotNull('customer_id')
                 ->distinct('customer_id')
                 ->count('customer_id');
 
-            // Get attendance count
-            $attendancePresentToday = SalesAttendance::query()
+            // Get attendance status per sales
+            $attendanceStatusByUser = SalesAttendance::query()
                 ->whereIn('user_id', $salesUserIds)
-                ->where('work_date', $today)
-                ->distinct('user_id')
-                ->count('user_id');
+                ->whereBetween('work_date', [$todayStart->toDateString(), $periodEnd->toDateString()])
+                ->orderByDesc('work_date')
+                ->orderByDesc('check_in_at')
+                ->get(['user_id', 'check_in_at', 'check_out_at'])
+                ->groupBy('user_id')
+                ->map(function ($items) {
+                    $latestAttendance = $items->first();
+
+                    if (!$latestAttendance || empty($latestAttendance->check_in_at)) {
+                        return 'Belum';
+                    }
+
+                    return !empty($latestAttendance->check_out_at) ? 'Selesai' : 'Bekerja';
+                })
+                ->all();
+
+            $attendancePresentToday = collect($attendanceStatusByUser)
+                ->filter(fn($status) => $status !== 'Belum')
+                ->count();
 
             // Activity breakdown
             $activityRaw = SalesVisit::query()
                 ->whereIn('user_id', $salesUserIds)
-                ->whereBetween('visited_at', [$monthStart, $monthEnd])
-                ->selectRaw('COALESCE(activity_type, ?) as label, COUNT(*) as total', ['unknown'])
-                ->groupBy('label')
-                ->orderByDesc('total')
-                ->limit(5)
+                ->whereBetween('visited_at', [$todayStart, $periodEnd])
+                ->selectRaw('COALESCE(activity_type, ?) as activity_type, COUNT(*) as total', ['kunjungan'])
+                ->groupBy('activity_type')
                 ->get();
 
-            $activityColors = ['bg-blue-500', 'bg-emerald-500', 'bg-purple-500', 'bg-amber-500', 'bg-cyan-500'];
-            $activityTotal = max(1, $activityRaw->sum('total'));
+            $activityGrouped = $activityRaw
+                ->map(function ($item) {
+                    return [
+                        'label' => $this->normalizeVisitTag((string) $item->activity_type),
+                        'total' => (int) $item->total,
+                    ];
+                })
+                ->groupBy('label')
+                ->map(fn($items) => $items->sum('total'))
+                ->sortDesc();
 
-            $activityBreakdown = $activityRaw->values()->map(function ($item, $index) use ($activityTotal, $activityColors) {
+            $collectionStatusVisit = (int) ($activityGrouped->get('kunjungan') ?? 0);
+            $collectionStatusDelivery = (int) ($activityGrouped->get('pengiriman') ?? 0);
+
+            $activityColors = [
+                'kunjungan' => 'bg-blue-500',
+                'pengiriman' => 'bg-emerald-500',
+            ];
+            $activityTotal = max(1, $activityGrouped->sum());
+
+            $activityBreakdown = $activityGrouped->map(function ($total, $label) use ($activityTotal, $activityColors) {
                 return [
-                    'label' => ucwords(str_replace('_', ' ', (string) $item->label)),
-                    'value' => (int) $item->total,
-                    'percent' => round(((int) $item->total / $activityTotal) * 100, 2),
-                    'color' => $activityColors[$index % count($activityColors)],
+                    'label' => ucfirst($label),
+                    'value' => (int) $total,
+                    'percent' => round(((int) $total / $activityTotal) * 100, 2),
+                    'color' => $activityColors[$label] ?? 'bg-cyan-500',
                 ];
-            })->all();
+            })->values()->all();
 
             // Product action breakdown
             $productActionRaw = SalesVisitProduct::query()
                 ->join('sales_visits', 'sales_visit_products.sales_visit_id', '=', 'sales_visits.id')
                 ->whereIn('sales_visits.user_id', $salesUserIds)
-                ->whereBetween('sales_visits.visited_at', [$monthStart, $monthEnd])
+                ->whereBetween('sales_visits.visited_at', [$todayStart, $periodEnd])
                 ->selectRaw('COALESCE(sales_visit_products.action_type, ?) as label, SUM(sales_visit_products.quantity) as total_quantity', ['unknown'])
                 ->groupBy('label')
                 ->orderByDesc('total_quantity')
@@ -233,59 +263,137 @@ class SupervisorController extends Controller
                 ];
             })->all();
 
-            // Progress per sales user
-            $monthlyByUser = SalesVisit::query()
-                ->whereIn('user_id', $salesUserIds)
-                ->whereBetween('visited_at', [$monthStart, $monthEnd])
-                ->selectRaw('user_id, COUNT(*) as visits_month, COUNT(DISTINCT customer_id) as customers_touched, MAX(visited_at) as last_visit_at')
-                ->groupBy('user_id')
-                ->get()
-                ->keyBy('user_id');
+            $financialRaw = SalesVisitProduct::query()
+                ->join('sales_visits', 'sales_visit_products.sales_visit_id', '=', 'sales_visits.id')
+                ->whereIn('sales_visits.user_id', $salesUserIds)
+                ->whereBetween('sales_visits.visited_at', [$todayStart, $periodEnd])
+                ->where('sales_visits.activity_type', 'pengiriman')
+                ->selectRaw("\n                    SUM(CASE\n                        WHEN LOWER(TRIM(COALESCE(sales_visit_products.action_type, ''))) = 'terjual'\n                        THEN ABS(COALESCE(sales_visit_products.value, 0))\n                        ELSE 0\n                    END) AS sales_value,\n                    SUM(CASE\n                        WHEN LOWER(TRIM(COALESCE(sales_visit_products.action_type, ''))) = 'retur'\n                        THEN ABS(COALESCE(sales_visit_products.value, 0))\n                        ELSE 0\n                    END) AS return_value\n                ")
+                ->first();
 
-            $todayByUser = SalesVisit::query()
-                ->whereIn('user_id', $salesUserIds)
-                ->where('visited_at', '>=', $todayStart)
-                ->where('visited_at', '<', $tomorrowStart)
-                ->selectRaw('user_id, COUNT(*) as visits_today, SUM(CASE WHEN is_fake_gps = 1 THEN 1 ELSE 0 END) as fake_gps_today')
-                ->groupBy('user_id')
-                ->get()
-                ->keyBy('user_id');
+            $salesValue = (int) ($financialRaw->sales_value ?? 0);
+            $returnValue = (int) ($financialRaw->return_value ?? 0);
+            $netProfitValue = $salesValue - $returnValue;
 
-            $attendanceUserIds = SalesAttendance::query()
-                ->whereIn('user_id', $salesUserIds)
-                ->where('work_date', $today)
-                ->distinct()
-                ->pluck('user_id')
+            $workdayConfigRaw = AppSetting::getValue('workday', [
+                'weekend_days' => config('workday.weekend_days', [0]),
+                'holidays' => config('workday.holidays', []),
+            ]);
+
+            $targetConfigRaw = AppSetting::getValue('target', [
+                'default_daily_target' => config('target.default_daily_target', $workdayConfigRaw['default_daily_target'] ?? 8),
+                'default_daily_delivery_target' => config('target.default_daily_delivery_target', 0),
+                'daily_targets' => config('target.daily_targets', $workdayConfigRaw['daily_targets'] ?? []),
+                'daily_delivery_targets' => config('target.daily_delivery_targets', []),
+            ]);
+
+            $workdayConfig = is_array($workdayConfigRaw) ? $workdayConfigRaw : [];
+            $targetConfig = is_array($targetConfigRaw) ? $targetConfigRaw : [];
+            $holidayConfig = $workdayConfig['holidays'] ?? config('workday.holidays', []);
+            $weekendConfig = $workdayConfig['weekend_days'] ?? config('workday.weekend_days', [0]);
+            $defaultDailyTarget = max(0, (int) ($targetConfig['default_daily_target'] ?? config('target.default_daily_target', 8)));
+            $defaultDailyDeliveryTarget = max(0, (int) ($targetConfig['default_daily_delivery_target'] ?? config('target.default_daily_delivery_target', 0)));
+            $dailyTargetsByDate = collect((array) ($targetConfig['daily_targets'] ?? config('target.daily_targets', [])))
+                ->mapWithKeys(function ($target, $date) {
+                    return [trim((string) $date) => max(0, (int) $target)];
+                })
+                ->filter(fn($target, $date) => $date !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1)
+                ->all();
+            $dailyDeliveryTargetsByDate = collect((array) ($targetConfig['daily_delivery_targets'] ?? config('target.daily_delivery_targets', [])))
+                ->mapWithKeys(function ($target, $date) {
+                    return [trim((string) $date) => max(0, (int) $target)];
+                })
+                ->filter(fn($target, $date) => $date !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1)
                 ->all();
 
-            $targetPerSalesPerDay = 8;
+            $holidayDates = collect(is_array($holidayConfig) ? $holidayConfig : [])
+                ->map(fn($date) => trim((string) $date))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
 
-            $progressPerSales = $salesUsers->values()->map(function ($sales, $index) use ($monthlyByUser, $todayByUser, $attendanceUserIds, $targetPerSalesPerDay) {
-                $todayData = $todayByUser->get($sales->id);
-                $monthData = $monthlyByUser->get($sales->id);
+            $holidaySet = array_fill_keys($holidayDates, true);
+            $weekendDays = collect(is_array($weekendConfig) ? $weekendConfig : [0])
+                ->map(fn($day) => (int) $day)
+                ->filter(fn($day) => $day >= 0 && $day <= 6)
+                ->unique()
+                ->values()
+                ->all();
 
-                $visitsTodayBySales = (int) ($todayData->visits_today ?? 0);
-                $visitsMonthBySales = (int) ($monthData->visits_month ?? 0);
-                $customersTouched = (int) ($monthData->customers_touched ?? 0);
-                $fakeGpsBySales = (int) ($todayData->fake_gps_today ?? 0);
-                $achievementPercent = $targetPerSalesPerDay > 0
+            $isNonWorkingDate = function ($date) use ($holidaySet, $weekendDays): bool {
+                return in_array($date->dayOfWeek, $weekendDays, true)
+                    || isset($holidaySet[$date->toDateString()]);
+            };
+
+            $targetPerSalesPerDay = $this->countTargetUnits(
+                $todayStart->copy(),
+                $periodEnd->copy(),
+                $isNonWorkingDate,
+                $dailyTargetsByDate,
+                $defaultDailyTarget
+            );
+
+            $targetDeliveryPerSalesPerDay = $this->countTargetUnits(
+                $todayStart->copy(),
+                $periodEnd->copy(),
+                $isNonWorkingDate,
+                $dailyDeliveryTargetsByDate,
+                $defaultDailyDeliveryTarget
+            );
+
+            $deliveryBySales = SalesVisit::query()
+                ->whereIn('user_id', $salesUserIds)
+                ->whereBetween('visited_at', [$todayStart, $periodEnd])
+                ->selectRaw('user_id, COALESCE(activity_type, ?) as activity_type, COUNT(*) as total', ['kunjungan'])
+                ->groupBy('user_id', 'activity_type')
+                ->get()
+                ->groupBy('user_id')
+                ->map(function ($items) {
+                    return (int) collect($items)
+                        ->filter(fn($item) => $this->normalizeVisitTag((string) $item->activity_type) === 'pengiriman')
+                        ->sum('total');
+                });
+
+            $progressPerSales = $salesUsers->values()->map(function ($sales, $index) use ($perSalesStats, $attendanceStatusByUser, $targetPerSalesPerDay, $targetDeliveryPerSalesPerDay, $deliveryBySales) {
+                $salesStats = $perSalesStats->get($sales->id);
+
+                $visitsTodayBySales = (int) ($salesStats->visits_today ?? 0);
+                $visitsMonthBySales = (int) ($salesStats->visits_month ?? 0);
+                $customersTouched = (int) ($salesStats->customers_touched ?? 0);
+                $fakeGpsBySales = (int) ($salesStats->fake_gps_today ?? 0);
+                $deliveryTodayBySales = (int) ($deliveryBySales->get($sales->id) ?? 0);
+
+                $totalAchievementPercent = $targetPerSalesPerDay > 0
                     ? round(($visitsTodayBySales / $targetPerSalesPerDay) * 100, 2)
                     : 0;
+
+                $deliveryAchievementPercent = $targetDeliveryPerSalesPerDay > 0
+                    ? round(($deliveryTodayBySales / $targetDeliveryPerSalesPerDay) * 100, 2)
+                    : 100;
+
+                $achievementPercent = min($totalAchievementPercent, $deliveryAchievementPercent);
+                $attendanceStatus = $attendanceStatusByUser[$sales->id] ?? 'Belum';
 
                 return [
                     'no' => $index + 1,
                     'id' => $sales->id,
                     'name' => $sales->name,
                     'avatar' => $sales->avatar ? Storage::url('profiles/' . $sales->avatar) : null,
-                    'attendance_today' => in_array($sales->id, $attendanceUserIds, true),
+                    'attendance_today' => $attendanceStatus !== 'Belum',
+                    'attendance_status' => $attendanceStatus,
                     'visits_today' => $visitsTodayBySales,
                     'visits_month' => $visitsMonthBySales,
                     'customers_touched' => $customersTouched,
                     'fake_gps_today' => $fakeGpsBySales,
                     'target_daily' => $targetPerSalesPerDay,
+                    'delivery_today' => $deliveryTodayBySales,
+                    'target_delivery_daily' => $targetDeliveryPerSalesPerDay,
+                    'achievement_total_percent' => $totalAchievementPercent,
+                    'achievement_delivery_percent' => $deliveryAchievementPercent,
                     'achievement_percent' => min(100, $achievementPercent),
                     'achievement_raw_percent' => $achievementPercent,
-                    'last_visit_at' => isset($monthData->last_visit_at) ? (string) $monthData->last_visit_at : null,
+                    'last_visit_at' => isset($salesStats->last_visit_at) ? (string) $salesStats->last_visit_at : null,
                 ];
             })->all();
 
@@ -294,19 +402,47 @@ class SupervisorController extends Controller
                 ->with([
                     'user:id,name,avatar',
                     'customer:id,name',
+                    'photos:id,sales_visit_id,file_path',
+                    'products:id,name,sku,file_path',
                 ])
                 ->whereIn('user_id', $salesUserIds)
-                ->whereBetween('visited_at', [$monthStart, $monthEnd])
-                ->select('id', 'user_id', 'customer_id', 'activity_type', 'visited_at', 'is_fake_gps')
+                ->whereBetween('visited_at', [$todayStart, $periodEnd])
+                ->select('id', 'user_id', 'customer_id', 'activity_type', 'description', 'address', 'lat', 'lng', 'visited_at', 'is_fake_gps')
                 ->latest('visited_at')
-                ->limit(8)
+                ->limit(10)
                 ->get()
                 ->map(function ($visit) {
                     return [
                         'id' => $visit->id,
+                        'user' => [
+                            'id' => $visit->user?->id,
+                            'name' => $visit->user?->name,
+                            'avatar' => $visit->user?->avatar ? Storage::url('profiles/' . $visit->user->avatar) : null,
+                        ],
                         'sales_name' => $visit->user?->name,
                         'customer_name' => $visit->customer?->name,
-                        'activity_type' => $visit->activity_type,
+                        'activity_type' => $this->normalizeVisitTag((string) $visit->activity_type),
+                        'description' => $visit->description,
+                        'address' => $visit->address,
+                        'lat' => $visit->lat,
+                        'lng' => $visit->lng,
+                        'photos' => $visit->photos->map(fn($photo) => [
+                            'file_path' => $photo->file_path,
+                        ])->values()->all(),
+                        'products' => $visit->products->map(function ($product) {
+                            return [
+                                'id' => $product->id,
+                                'name' => $product->name,
+                                'sku' => $product->sku,
+                                'file_path' => $product->file_path,
+                                'pivot' => [
+                                    'quantity' => (int) ($product->pivot?->quantity ?? 0),
+                                    'price' => (int) ($product->pivot?->price ?? 0),
+                                    'value' => (int) ($product->pivot?->value ?? 0),
+                                    'action_type' => (string) ($product->pivot?->action_type ?? ''),
+                                ],
+                            ];
+                        })->values()->all(),
                         'visited_at' => $visit->visited_at?->toISOString(),
                         'is_fake_gps' => (bool) $visit->is_fake_gps,
                     ];
@@ -317,6 +453,11 @@ class SupervisorController extends Controller
         $totalSales = $salesUsers->count();
         $totalProducts = Product::query()->where('is_active', true)->count();
         $totalCustomers = Customer::query()->count();
+        $products = Product::query()
+            ->where('is_active', true)
+            ->select('id', 'name', 'sku', 'file_path', 'category')
+            ->orderBy('name')
+            ->get();
 
         // Workday configuration
         $workdayConfigRaw = AppSetting::getValue('workday', [
@@ -324,9 +465,31 @@ class SupervisorController extends Controller
             'holidays' => config('workday.holidays', []),
         ]);
 
+        $targetConfigRaw = AppSetting::getValue('target', [
+            'default_daily_target' => config('target.default_daily_target', $workdayConfigRaw['default_daily_target'] ?? 8),
+            'default_daily_delivery_target' => config('target.default_daily_delivery_target', 0),
+            'daily_targets' => config('target.daily_targets', $workdayConfigRaw['daily_targets'] ?? []),
+            'daily_delivery_targets' => config('target.daily_delivery_targets', []),
+        ]);
+
         $workdayConfig = is_array($workdayConfigRaw) ? $workdayConfigRaw : [];
+        $targetConfig = is_array($targetConfigRaw) ? $targetConfigRaw : [];
         $holidayConfig = $workdayConfig['holidays'] ?? config('workday.holidays', []);
         $weekendConfig = $workdayConfig['weekend_days'] ?? config('workday.weekend_days', [0]);
+        $defaultDailyTarget = max(0, (int) ($targetConfig['default_daily_target'] ?? config('target.default_daily_target', 8)));
+        $defaultDailyDeliveryTarget = max(0, (int) ($targetConfig['default_daily_delivery_target'] ?? config('target.default_daily_delivery_target', 0)));
+        $dailyTargetsByDate = collect((array) ($targetConfig['daily_targets'] ?? config('target.daily_targets', [])))
+            ->mapWithKeys(function ($target, $date) {
+                return [trim((string) $date) => max(0, (int) $target)];
+            })
+            ->filter(fn($target, $date) => $date !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1)
+            ->all();
+        $dailyDeliveryTargetsByDate = collect((array) ($targetConfig['daily_delivery_targets'] ?? config('target.daily_delivery_targets', [])))
+            ->mapWithKeys(function ($target, $date) {
+                return [trim((string) $date) => max(0, (int) $target)];
+            })
+            ->filter(fn($target, $date) => $date !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1)
+            ->all();
 
         $holidayDates = collect(is_array($holidayConfig) ? $holidayConfig : [])
             ->map(fn($date) => trim((string) $date))
@@ -348,20 +511,37 @@ class SupervisorController extends Controller
                 || isset($holidaySet[$date->toDateString()]);
         };
 
-        $targetVisitToday = $isNonWorkingDate(now()) ? 0 : $totalSales * 8;
+        $targetVisitToday = $this->countTargetUnits(
+            $todayStart->copy(),
+            $periodEnd->copy(),
+            $isNonWorkingDate,
+            $dailyTargetsByDate,
+            $defaultDailyTarget
+        ) * $totalSales;
 
-        $workingDaysSoFar = 0;
-        $workingDayCursor = now()->copy()->startOfMonth()->startOfDay();
-        $workingDayEnd = now()->copy()->startOfDay();
+        $targetVisitMonth = $this->countTargetUnits(
+            $monthStart->copy(),
+            $monthEnd->copy(),
+            $isNonWorkingDate,
+            $dailyTargetsByDate,
+            $defaultDailyTarget
+        ) * $totalSales;
 
-        while ($workingDayCursor->lte($workingDayEnd)) {
-            if (!$isNonWorkingDate($workingDayCursor)) {
-                $workingDaysSoFar++;
-            }
-            $workingDayCursor->addDay();
-        }
+        $targetDeliveryToday = $this->countTargetUnits(
+            $todayStart->copy(),
+            $periodEnd->copy(),
+            $isNonWorkingDate,
+            $dailyDeliveryTargetsByDate,
+            $defaultDailyDeliveryTarget
+        ) * $totalSales;
 
-        $targetVisitMonth = $totalSales * 8 * $workingDaysSoFar;
+        $targetDeliveryMonth = $this->countTargetUnits(
+            $monthStart->copy(),
+            $monthEnd->copy(),
+            $isNonWorkingDate,
+            $dailyDeliveryTargetsByDate,
+            $defaultDailyDeliveryTarget
+        ) * $totalSales;
 
         $visitCompletionToday = $targetVisitToday > 0
             ? round(($visitsToday / $targetVisitToday) * 100, 2)
@@ -382,14 +562,152 @@ class SupervisorController extends Controller
                 'fake_gps_today' => $fakeGpsToday,
                 'target_visit_today' => $targetVisitToday,
                 'target_visit_month' => $targetVisitMonth,
+                'target_delivery_today' => $targetDeliveryToday,
+                'target_delivery_month' => $targetDeliveryMonth,
                 'visit_completion_today' => $visitCompletionToday,
                 'visit_completion_month' => $visitCompletionMonth,
+                'collection_status_visit' => $collectionStatusVisit,
+                'collection_status_delivery' => $collectionStatusDelivery,
+                'collection_target_visit' => $targetVisitToday,
+                'collection_target_delivery' => $targetDeliveryToday,
+                'sales_value' => $salesValue,
+                'return_value' => $returnValue,
+                'net_profit_value' => $netProfitValue,
             ],
+            'filters' => [
+                'filterType' => $filterType,
+                'date' => $selectedDate,
+                'startDate' => $todayStart->toDateString(),
+                'endDate' => $periodEnd->toDateString(),
+            ],
+            'period' => [
+                'start' => $todayStart->toDateString(),
+                'end' => $periodEnd->toDateString(),
+                'isRange' => $todayStart->toDateString() !== $periodEnd->toDateString(),
+            ],
+            'products' => $products,
             'activityBreakdown' => $activityBreakdown,
             'productActionBreakdown' => $productActionBreakdown,
             'progressPerSales' => $progressPerSales,
             'recentVisits' => $recentVisits,
         ];
+    }
+
+    private function buildEmptyDashboardData(array $filters): array
+    {
+        $selectedDate = $this->parseDateString($filters['selectedDate'] ?? now()->toDateString());
+        $startDate = $this->parseDateString($filters['startDate'] ?? $selectedDate);
+        $endDate = $this->parseDateString($filters['endDate'] ?? $selectedDate);
+        $isRange = $startDate !== $endDate;
+
+        return [
+            'stats' => [
+                'total_sales' => 0,
+                'total_products' => 0,
+                'total_customers' => 0,
+                'customers_visited_by_team' => 0,
+                'visits_today' => 0,
+                'visits_this_month' => 0,
+                'attendance_present_today' => 0,
+                'fake_gps_today' => 0,
+                'target_visit_today' => 0,
+                'target_visit_month' => 0,
+                'target_delivery_today' => 0,
+                'target_delivery_month' => 0,
+                'visit_completion_today' => 0,
+                'visit_completion_month' => 0,
+                'collection_status_visit' => 0,
+                'collection_status_delivery' => 0,
+                'collection_target_visit' => 0,
+                'collection_target_delivery' => 0,
+                'sales_value' => 0,
+                'return_value' => 0,
+                'net_profit_value' => 0,
+            ],
+            'filters' => [
+                'filterType' => $isRange ? 'range' : 'single',
+                'date' => $selectedDate,
+                'startDate' => $startDate,
+                'endDate' => $endDate,
+            ],
+            'period' => [
+                'start' => $startDate,
+                'end' => $endDate,
+                'isRange' => $isRange,
+            ],
+            'products' => [],
+            'activityBreakdown' => [],
+            'productActionBreakdown' => [],
+            'progressPerSales' => [],
+            'recentVisits' => [],
+        ];
+    }
+
+    private function parseDateString(mixed $value): string
+    {
+        try {
+            return Carbon::parse((string) $value)->toDateString();
+        } catch (Throwable) {
+            return now()->toDateString();
+        }
+    }
+
+    private function countWorkingDays(Carbon $start, Carbon $end, callable $isNonWorkingDate): int
+    {
+        if ($start->gt($end)) {
+            return 0;
+        }
+
+        $cursor = $start->copy()->startOfDay();
+        $limit = $end->copy()->startOfDay();
+        $count = 0;
+
+        while ($cursor->lte($limit)) {
+            if (!$isNonWorkingDate($cursor)) {
+                $count++;
+            }
+
+            $cursor->addDay();
+        }
+
+        return $count;
+    }
+
+    private function countTargetUnits(
+        Carbon $start,
+        Carbon $end,
+        callable $isNonWorkingDate,
+        array $dailyTargetsByDate,
+        int $defaultDailyTarget
+    ): int {
+        if ($start->gt($end)) {
+            return 0;
+        }
+
+        $cursor = $start->copy()->startOfDay();
+        $limit = $end->copy()->startOfDay();
+        $totalTarget = 0;
+
+        while ($cursor->lte($limit)) {
+            $dateKey = $cursor->toDateString();
+
+            if (array_key_exists($dateKey, $dailyTargetsByDate)) {
+                $totalTarget += max(0, (int) $dailyTargetsByDate[$dateKey]);
+            } elseif (!$isNonWorkingDate($cursor)) {
+                $totalTarget += max(0, $defaultDailyTarget);
+            }
+
+            $cursor->addDay();
+        }
+
+        return $totalTarget;
+    }
+
+    private function normalizeVisitTag(string $activityType): string
+    {
+        $normalized = Str::lower(trim($activityType));
+
+        return $normalized === 'pengiriman' ? 'pengiriman' : 'kunjungan';
     }
 
     public function monitoringTeam()
@@ -476,7 +794,7 @@ class SupervisorController extends Controller
         ]);
     }
 
-    public function monitoringRecord($user_id)
+    public function monitoringRecord(Request $request, $user_id)
     {
         $supervisor = User::query()
             ->with([
@@ -511,10 +829,16 @@ class SupervisorController extends Controller
         }
 
         // Determine filter type and dates
-        $filterType = request()->query('filterType', 'single');
-        $selectedDate = request()->query('date', now()->toDateString());
-        $startDate = request()->query('startDate', $selectedDate);
-        $endDate = request()->query('endDate', $selectedDate);
+        $filterType = $request->query('filterType', 'single');
+        $selectedDate = $request->query('date', now()->toDateString());
+        $startDate = $request->query('startDate', $selectedDate);
+        $endDate = $request->query('endDate', $selectedDate);
+
+        $selectedSalesIds = collect((array) $request->query('salesIds', []))
+            ->map(fn($id) => (int) $id)
+            ->filter(fn($id) => $id > 0)
+            ->unique()
+            ->values();
 
         // Build query for visits
         $recentVisits = [];
@@ -525,6 +849,15 @@ class SupervisorController extends Controller
             ->get();
 
         if ($salesUsers->count() > 0) {
+            $availableSalesIds = $salesUsers->pluck('id');
+            $validSelectedSalesIds = $selectedSalesIds
+                ->intersect($availableSalesIds)
+                ->values();
+
+            $effectiveSalesIds = $validSelectedSalesIds->isNotEmpty()
+                ? $validSelectedSalesIds
+                : $availableSalesIds;
+
             $query = SalesVisit::with([
                 'photos',
                 'customer',
@@ -533,7 +866,7 @@ class SupervisorController extends Controller
                     $query->select('id', 'name', 'avatar');
                 },
             ])
-                ->whereIn('user_id', $salesUsers->pluck('id'));
+                ->whereIn('user_id', $effectiveSalesIds);
 
             if ($filterType === 'range') {
                 $query->whereBetween('visited_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59']);
@@ -559,6 +892,11 @@ class SupervisorController extends Controller
             'startDate' => $startDate,
             'endDate' => $endDate,
             'filterType' => $filterType,
+            'selectedSalesIds' => $selectedSalesIds
+                ->intersect($salesUsers->pluck('id'))
+                ->map(fn($id) => (string) $id)
+                ->values()
+                ->all(),
             'serverTime' => now()->toISOString(),
             'supervisorName' => $supervisor->name,
             'supervisorAvatar' => $supervisorAvatar,

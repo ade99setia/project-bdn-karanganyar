@@ -28,6 +28,14 @@ export default function AlertModal({
     onSecondaryClick,
     disableBackdropClick = false,
 }: AlertModalProps) {
+    const hasHandledPrimaryRef = React.useRef(false);
+
+    React.useEffect(() => {
+        if (isOpen) {
+            hasHandledPrimaryRef.current = false;
+        }
+    }, [isOpen]);
+
     if (!isOpen) return null;
 
     const variants = {
@@ -64,11 +72,11 @@ export default function AlertModal({
     const v = variants[type];
 
     const handlePrimary = () => {
-        if (onPrimaryClick) {
-            onPrimaryClick();
-        } else {
-            onClose();
-        }
+        if (hasHandledPrimaryRef.current) return;
+        hasHandledPrimaryRef.current = true;
+
+        onClose();
+        onPrimaryClick?.();
     };
 
     return createPortal(

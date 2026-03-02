@@ -1,4 +1,5 @@
 import { ImageIcon, Pencil, Plus, Save, Trash2, Upload, Warehouse as WarehouseIcon, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 import type { Warehouse } from './types';
 
@@ -39,6 +40,25 @@ export default function WarehouseManagementSection({
     deleteWarehouse,
     onPreviewImage,
 }: Props) {
+    const [warehouseCreatePreviewUrl, setWarehouseCreatePreviewUrl] = useState<string | null>(null);
+
+    const [warehouseEditPreview, setWarehouseEditPreview] = useState<{ warehouseId: number | null; url: string | null }>({
+        warehouseId: null,
+        url: null,
+    });
+
+    useEffect(() => {
+        return () => {
+            if (warehouseCreatePreviewUrl) {
+                URL.revokeObjectURL(warehouseCreatePreviewUrl);
+            }
+
+            if (warehouseEditPreview.url) {
+                URL.revokeObjectURL(warehouseEditPreview.url);
+            }
+        };
+    }, [warehouseCreatePreviewUrl, warehouseEditPreview.url]);
+
     return (
         <section className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
             <h2 className="mb-4 font-semibold text-gray-900 dark:text-white">Manajemen Gudang</h2>
@@ -57,15 +77,30 @@ export default function WarehouseManagementSection({
                         type="file"
                         accept="image/*"
                         className="hidden"
-                        onChange={(e) => setWarehouseCreateFile(e.target.files?.[0] ?? null)}
+                        onChange={(e) => {
+                            const file = e.target.files?.[0] ?? null;
+                            setWarehouseCreateFile(file);
+
+                            setWarehouseCreatePreviewUrl((previousUrl) => {
+                                if (previousUrl) {
+                                    URL.revokeObjectURL(previousUrl);
+                                }
+
+                                return file ? URL.createObjectURL(file) : null;
+                            });
+                        }}
                     />
                     <button
                         type="button"
                         onClick={() => createFileInputRef.current?.click()}
                         title="Upload foto gudang"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full text-gray-400 hover:text-indigo-500 hover:bg-indigo-50/80 dark:text-gray-500 dark:hover:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors duration-150"
+                        className="absolute right-2 top-1/2 h-8 w-8 -translate-y-1/2 overflow-hidden rounded-full border border-transparent text-gray-400 transition-colors duration-150 hover:border-indigo-200 hover:text-indigo-500 hover:bg-indigo-50/80 dark:text-gray-500 dark:hover:border-indigo-800 dark:hover:text-indigo-400 dark:hover:bg-indigo-900/30"
                     >
-                        <Upload className="h-5 w-5" />
+                        {warehouseCreatePreviewUrl ? (
+                            <img src={warehouseCreatePreviewUrl} alt="Preview foto gudang" className="h-full w-full object-cover" />
+                        ) : (
+                            <Upload className="mx-auto h-5 w-5" />
+                        )}
                     </button>
                 </div>
 
@@ -127,9 +162,31 @@ export default function WarehouseManagementSection({
                                                     type="file"
                                                     accept="image/*"
                                                     className="absolute inset-0 z-50 h-full w-full cursor-pointer opacity-0"
-                                                    onChange={(e) => setWarehouseEditFile(e.target.files?.[0] ?? null)}
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0] ?? null;
+                                                        setWarehouseEditFile(file);
+
+                                                        setWarehouseEditPreview((previous) => {
+                                                            if (previous.url) {
+                                                                URL.revokeObjectURL(previous.url);
+                                                            }
+
+                                                            return {
+                                                                warehouseId: warehouse.id,
+                                                                url: file ? URL.createObjectURL(file) : null,
+                                                            };
+                                                        });
+                                                    }}
                                                 />
-                                                <Upload className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                                                {(warehouseEditPreview.warehouseId === warehouse.id && warehouseEditPreview.url) || warehouse.file_path ? (
+                                                    <img
+                                                        src={(warehouseEditPreview.warehouseId === warehouse.id ? warehouseEditPreview.url : null) ?? `/storage/${warehouse.file_path}`}
+                                                        alt={warehouse.name}
+                                                        className="h-full w-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <Upload className="h-4 w-4 text-gray-400 dark:text-gray-500" />
+                                                )}
                                             </div>
                                         ) : (
                                             <div className="mx-auto flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">

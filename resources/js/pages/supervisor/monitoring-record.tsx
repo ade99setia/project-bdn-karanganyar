@@ -2,17 +2,18 @@ import { router } from '@inertiajs/react';
 import { motion } from 'framer-motion';
 import {
     Calendar,
-    ChevronDown,
     Clock,
-    Users,
     Filter,
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { DayPicker } from 'react-day-picker';
+import MultiSelectFilter from '@/components/inputs/MultiSelectFilter';
 import ImagePreviewModal from '@/components/modal/image-preview-modal';
 import VisitDetailModal from '@/components/modal/visit-detail-modal';
 import VisitHistorySection from '@/components/section/visit-history-section';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem } from '@/types';
+import 'react-day-picker/dist/style.css';
 
 interface User {
     id: number;
@@ -91,6 +92,7 @@ interface Props {
     startDate: string;
     endDate: string;
     filterType: 'single' | 'range';
+    selectedSalesIds?: string[];
     serverTime: string;
     supervisorName: string;
     supervisorAvatar: string | null;
@@ -107,7 +109,7 @@ const breadcrumbs: BreadcrumbItem[] = [
     }
 ];
 
-export default function Monitoring({ recentVisits, products, selectedDate, serverTime, salesUsers, startDate, endDate, filterType, supervisorName, supervisorAvatar }: Props) {
+export default function Monitoring({ recentVisits, products, selectedDate, serverTime, salesUsers, startDate, endDate, filterType, selectedSalesIds: initialSelectedSalesIds = [], supervisorName, supervisorAvatar }: Props) {
     const [currentTime, setCurrentTime] = useState(new Date(serverTime));
     const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -118,16 +120,17 @@ export default function Monitoring({ recentVisits, products, selectedDate, serve
     const [singleDate, setSingleDate] = useState(selectedDate);
     const [rangeStart, setRangeStart] = useState(startDate || selectedDate);
     const [rangeEnd, setRangeEnd] = useState(endDate || selectedDate);
+    const [openPicker, setOpenPicker] = useState<'single' | 'rangeStart' | 'rangeEnd' | null>(null);
 
     // Sales user filter
-    const [selectedSalesId, setSelectedSalesId] = useState<number | null>(null);
+    const [selectedSalesIds, setSelectedSalesIds] = useState<string[]>(initialSelectedSalesIds);
 
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
 
     // Filter visits based on selected sales user
-    const filteredByUser = selectedSalesId
-        ? recentVisits.filter(visit => visit.user.id === selectedSalesId)
+    const filteredByUser = selectedSalesIds.length > 0
+        ? recentVisits.filter((visit) => selectedSalesIds.includes(String(visit.user.id)))
         : recentVisits;
 
     const totalItems = filteredByUser.length;
@@ -140,10 +143,40 @@ export default function Monitoring({ recentVisits, products, selectedDate, serve
     const prevPage = () => setCurrentPage((prev) => Math.max(prev - 1, 1));
 
     // Reset page when filter changes
-    const handleSalesFilterChange = (newSalesId: number | null) => {
-        setSelectedSalesId(newSalesId);
+    const handleSalesFilterChange = (newSalesIds: string[]) => {
+        setSelectedSalesIds(newSalesIds);
         setCurrentPage(1);
+
+        const baseurl = window.location.pathname;
+        const baseParams = filterDateType === 'range'
+            ? {
+                filterType: 'range' as const,
+                startDate: rangeStart,
+                endDate: rangeEnd,
+            }
+            : {
+                date: singleDate,
+            };
+
+        router.visit(baseurl, {
+            method: 'get',
+            data: {
+                ...baseParams,
+                ...(newSalesIds.length > 0 ? { salesIds: newSalesIds } : {}),
+            },
+            preserveScroll: true,
+            preserveState: true,
+            replace: true,
+        });
     };
+
+    const salesFilterOptions = useMemo(
+        () => salesUsers.map((user, index) => ({
+            value: String(user.id),
+            label: `${index + 1}. ${user.name}`,
+        })),
+        [salesUsers]
+    );
 
     useEffect(() => {
         const timer = setInterval(() => {
@@ -182,16 +215,52 @@ export default function Monitoring({ recentVisits, products, selectedDate, serve
         });
     };
 
-    const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const newDate = e.target.value;
+    const toDateString = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    const formatDateLabel = (dateString?: string) => {
+        if (!dateString) return 'Pilih tanggal';
+        const date = new Date(`${dateString}T00:00:00`);
+        return new Intl.DateTimeFormat('id-ID', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+        }).format(date);
+    };
+
+    const handleFilterChange = (newDate: string) => {
         setSingleDate(newDate);
         const baseurl = window.location.pathname;
-        router.visit(`${baseurl}?date=${newDate}`, { preserveScroll: true });
+        router.visit(baseurl, {
+            method: 'get',
+            data: {
+                date: newDate,
+                ...(selectedSalesIds.length > 0 ? { salesIds: selectedSalesIds } : {}),
+            },
+            preserveScroll: true,
+            preserveState: true,
+            replace: true,
+        });
     };
 
     const handleDateRangeChange = () => {
         const baseurl = window.location.pathname;
-        router.visit(`${baseurl}?filterType=range&startDate=${rangeStart}&endDate=${rangeEnd}`, { preserveScroll: true });
+        router.visit(baseurl, {
+            method: 'get',
+            data: {
+                filterType: 'range',
+                startDate: rangeStart,
+                endDate: rangeEnd,
+                ...(selectedSalesIds.length > 0 ? { salesIds: selectedSalesIds } : {}),
+            },
+            preserveScroll: true,
+            preserveState: true,
+            replace: true,
+        });
     };
 
 
@@ -202,7 +271,7 @@ export default function Monitoring({ recentVisits, products, selectedDate, serve
         <AppLayout breadcrumbs={breadcrumbs}>
             <div className="min-h-screen bg-blue-50/20 dark:bg-blue-950/10 pb-16 pt-8 px-5 sm:px-6 lg:px-8">
                 <div className="mx-auto max-w-7xl space-y-10">
-                    
+
                     <motion.div
                         initial={{ opacity: 0, y: -12 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -273,10 +342,13 @@ export default function Monitoring({ recentVisits, products, selectedDate, serve
                                 <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 sm:gap-4">
 
                                     {/* Toggle Harian / Periode */}
-                                    <div className="flex-1 min-w-45 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+                                    <div className="flex-1 min-w-45 bg-slate-100 dark:bg-slate-800 p-4 rounded-lg">
                                         <div className="grid grid-cols-2 gap-1">
                                             <button
-                                                onClick={() => setFilterDateType("single")}
+                                                onClick={() => {
+                                                    setFilterDateType("single");
+                                                    setOpenPicker(null);
+                                                }}
                                                 className={`px-4 py-1.5 text-xs sm:text-sm font-semibold rounded-md transition-all ${filterDateType === "single"
                                                     ? "bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400"
                                                     : "text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-700/60"
@@ -285,7 +357,10 @@ export default function Monitoring({ recentVisits, products, selectedDate, serve
                                                 Harian
                                             </button>
                                             <button
-                                                onClick={() => setFilterDateType("range")}
+                                                onClick={() => {
+                                                    setFilterDateType("range");
+                                                    setOpenPicker(null);
+                                                }}
                                                 className={`px-4 py-1.5 text-xs sm:text-sm font-semibold rounded-md transition-all ${filterDateType === "range"
                                                     ? "bg-orange-500 dark:bg-orange-600 shadow-sm text-white dark:text-white"
                                                     : "text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-700/60"
@@ -299,30 +374,85 @@ export default function Monitoring({ recentVisits, products, selectedDate, serve
                                     {/* Date picker(s) */}
                                     <div className="flex-1 min-w-55 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm p-1">
                                         {filterDateType === "single" ? (
-                                            <div className="relative">
-                                                <Calendar size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                                                <input
-                                                    type="date"
-                                                    value={singleDate ?? ""}
-                                                    onChange={handleFilterChange}
-                                                    className="w-full pl-10 pr-4 py-2 text-sm font-medium bg-transparent focus:outline-none cursor-pointer text-slate-700 dark:text-slate-200"
-                                                />
+                                            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap py-2">
+                                                <Calendar size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none py-2" />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setOpenPicker((prev) => (prev === 'single' ? null : 'single'))}
+                                                    className="w-full pl-10 pr-4 py-2 text-sm font-medium bg-transparent focus:outline-none cursor-pointer text-slate-700 dark:text-slate-200 text-left"
+                                                >
+                                                    {formatDateLabel(singleDate)}
+                                                </button>
+
+                                                {openPicker === 'single' && (
+                                                    <div className="absolute left-0 top-[calc(100%+8px)] z-30 rounded-xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                                                        <DayPicker
+                                                            mode="single"
+                                                            selected={singleDate ? new Date(`${singleDate}T00:00:00`) : undefined}
+                                                            onSelect={(date) => {
+                                                                if (date) {
+                                                                    handleFilterChange(toDateString(date));
+                                                                    setOpenPicker(null);
+                                                                }
+                                                            }}
+                                                        />
+                                                    </div>
+                                                )}
                                             </div>
                                         ) : (
-                                            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                                                <input
-                                                    type="date"
-                                                    value={rangeStart ?? ""}
-                                                    onChange={(e) => setRangeStart(e.target.value)}
-                                                    className="flex-1 min-w-27.5 px-3 py-2 text-sm font-medium bg-transparent focus:outline-none cursor-pointer text-center text-slate-700 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 sm:border-none"
-                                                />
+                                            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap py-2">
+                                                <div className="relative flex-1 min-w-27.5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setOpenPicker((prev) => (prev === 'rangeStart' ? null : 'rangeStart'))}
+                                                        className="w-full px-3 py-2 text-sm font-medium bg-transparent focus:outline-none cursor-pointer text-center text-slate-700 dark:text-slate-200 border-r border-slate-200 dark:border-slate-700 sm:border-none"
+                                                    >
+                                                        {formatDateLabel(rangeStart)}
+                                                    </button>
+
+                                                    {openPicker === 'rangeStart' && (
+                                                        <div className="absolute left-0 top-[calc(100%+8px)] z-30 rounded-xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                                                            <DayPicker
+                                                                mode="single"
+                                                                selected={rangeStart ? new Date(`${rangeStart}T00:00:00`) : undefined}
+                                                                onSelect={(date) => {
+                                                                    if (date) {
+                                                                        setRangeStart(toDateString(date));
+                                                                        setOpenPicker(null);
+                                                                    }
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
+
                                                 <span className="text-slate-400 dark:text-slate-500 text-sm hidden sm:inline">s/d</span>
-                                                <input
-                                                    type="date"
-                                                    value={rangeEnd ?? ""}
-                                                    onChange={(e) => setRangeEnd(e.target.value)}
-                                                    className="flex-1 min-w-27.5 px-3 py-2 text-sm font-medium bg-transparent focus:outline-none cursor-pointer text-center text-slate-700 dark:text-slate-200"
-                                                />
+
+                                                <div className="relative flex-1 min-w-27.5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setOpenPicker((prev) => (prev === 'rangeEnd' ? null : 'rangeEnd'))}
+                                                        className="w-full px-3 py-2 text-sm font-medium bg-transparent focus:outline-none cursor-pointer text-center text-slate-700 dark:text-slate-200"
+                                                    >
+                                                        {formatDateLabel(rangeEnd)}
+                                                    </button>
+
+                                                    {openPicker === 'rangeEnd' && (
+                                                        <div className="absolute right-0 top-[calc(100%+8px)] z-30 rounded-xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                                                            <DayPicker
+                                                                mode="single"
+                                                                selected={rangeEnd ? new Date(`${rangeEnd}T00:00:00`) : undefined}
+                                                                onSelect={(date) => {
+                                                                    if (date) {
+                                                                        setRangeEnd(toDateString(date));
+                                                                        setOpenPicker(null);
+                                                                    }
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
+
                                                 <button
                                                     onClick={handleDateRangeChange}
                                                     className="bg-orange-500 hover:bg-orange-600 text-white p-2.5 rounded-md transition-colors shrink-0"
@@ -334,26 +464,17 @@ export default function Monitoring({ recentVisits, products, selectedDate, serve
                                         )}
                                     </div>
 
-                                    {/* Sales Dropdown */}
-                                    <div className="relative flex-1 min-w-60 group">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <Users size={16} className="text-slate-400 group-hover:text-blue-500 transition-colors" />
-                                        </div>
-                                        <select
-                                            value={selectedSalesId ?? ""}
-                                            onChange={(e) => handleSalesFilterChange(e.target.value ? Number(e.target.value) : null)}
-                                            className="w-full pl-10 pr-10 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-500 hover:border-blue-400 transition-all appearance-none cursor-pointer"
-                                        >
-                                            <option value="">Semua Sales ({salesUsers.length})</option>
-                                            {salesUsers.map((user, i) => (
-                                                <option key={user.id} value={user.id}>
-                                                    {i + 1}. {user.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                            <ChevronDown size={16} className="text-slate-400" />
-                                        </div>
+                                    {/* Sales Multi Select Filter */}
+                                    <div className="flex-1 min-w-60">
+                                        <MultiSelectFilter
+                                            options={salesFilterOptions}
+                                            value={selectedSalesIds}
+                                            onChange={handleSalesFilterChange}
+                                            placeholder={`Semua Sales (${salesUsers.length})`}
+                                            searchPlaceholder="Cari sales..."
+                                            emptyLabel="Sales tidak ditemukan"
+                                            className="w-full"
+                                        />
                                     </div>
                                 </div>
 
@@ -370,7 +491,7 @@ export default function Monitoring({ recentVisits, products, selectedDate, serve
                         totalItems={totalItems}
                         startIndex={startIndex}
                         endIndex={endIndex}
-                        selectedSalesId={selectedSalesId}
+                        selectedSalesId={selectedSalesIds.length === 1 ? Number(selectedSalesIds[0]) : null}
                         salesUsers={salesUsers}
                         currentItems={currentItems}
                         selectedVisit={selectedVisit}
@@ -381,6 +502,7 @@ export default function Monitoring({ recentVisits, products, selectedDate, serve
                         totalPages={totalPages}
                         onPrevPage={prevPage}
                         onNextPage={nextPage}
+                        layout="grid2"
                     />
                 </div>
 

@@ -19,7 +19,7 @@ class ProductManagementController extends Controller
     {
         $search = $request->query('search', '');
         $perPage = $request->query('per_page', 10);
-        $categoryFilter = $request->query('category');
+        $categoryFilter = array_values(array_filter((array) $request->query('category', []), fn($category) => filled($category)));
 
         $query = Product::query();
 
@@ -29,8 +29,8 @@ class ProductManagementController extends Controller
                 ->orWhere('description', 'like', "%{$search}%");
         }
 
-        if ($categoryFilter) {
-            $query->where('category', $categoryFilter);
+        if (!empty($categoryFilter)) {
+            $query->whereIn('category', $categoryFilter);
         }
 
         $products = $query->paginate($perPage)

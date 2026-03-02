@@ -35,7 +35,7 @@ Route::middleware(['auth', 'verified'])->prefix('supervisor')->group(function ()
 // Sales Routes Capacitor JS
 Route::middleware(['auth', 'verified'])->prefix('sales')->group(function () {
 
-    Route::middleware(['roleUser:1,active'])->group(function () {
+    Route::middleware(['roleUser:sales,active'])->group(function () {
         Route::get('dashboard', [DashboardController::class, 'sales']);
 
         Route::get('monitoring-record/{user_id}', [SalesController::class, 'monitoringRecord'])

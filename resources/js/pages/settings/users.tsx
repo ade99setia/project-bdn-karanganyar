@@ -112,7 +112,7 @@ export default function UserSettings() {
         phone: '',
         role_id: '',
         warehouse_id: '',
-        password: '',
+        password: 'bdn01234',
         employee_status: 'active',
         supervisor_id: '',
     });
@@ -157,7 +157,7 @@ export default function UserSettings() {
             phone: '',
             role_id: '',
             warehouse_id: '',
-            password: '',
+            password: 'bdn01234',
             employee_status: 'active',
             supervisor_id: '',
         });

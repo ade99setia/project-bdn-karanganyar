@@ -212,11 +212,27 @@ class UserManagementController extends Controller
             'holiday_notes' => [],
         ]);
 
+        $targetConfig = AppSetting::getValue('target', [
+            'default_daily_target' => $workdayConfig['default_daily_target'] ?? config('target.default_daily_target', 8),
+            'default_daily_delivery_target' => config('target.default_daily_delivery_target', 0),
+            'daily_targets' => $workdayConfig['daily_targets'] ?? config('target.daily_targets', []),
+        ]);
+
         return Inertia::render('settings/workday', [
             'workday' => [
                 'weekend_days' => array_values(array_map('intval', (array) ($workdayConfig['weekend_days'] ?? [0]))),
                 'holidays' => array_values((array) ($workdayConfig['holidays'] ?? [])),
                 'holiday_notes' => (array) ($workdayConfig['holiday_notes'] ?? []),
+            ],
+            'target' => [
+                'default_daily_target' => max(0, (int) ($targetConfig['default_daily_target'] ?? config('target.default_daily_target', 8))),
+                'default_daily_delivery_target' => max(0, (int) ($targetConfig['default_daily_delivery_target'] ?? config('target.default_daily_delivery_target', 0))),
+                'daily_targets' => collect((array) ($targetConfig['daily_targets'] ?? config('target.daily_targets', [])))
+                    ->mapWithKeys(function ($target, $date) {
+                        return [trim((string) $date) => max(0, (int) $target)];
+                    })
+                    ->filter(fn($target, $date) => $date !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1)
+                    ->all(),
             ],
         ]);
     }
@@ -393,6 +409,10 @@ class UserManagementController extends Controller
             'holidays.*' => ['date_format:Y-m-d'],
             'holiday_notes' => ['nullable', 'array'],
             'holiday_notes.*' => ['nullable', 'string', 'max:255'],
+            'default_daily_target' => ['nullable', 'integer', 'min:0', 'max:1000'],
+            'default_daily_delivery_target' => ['nullable', 'integer', 'min:0', 'max:1000'],
+            'daily_targets' => ['nullable', 'array'],
+            'daily_targets.*' => ['nullable', 'integer', 'min:0', 'max:1000'],
         ]);
 
         $weekendDays = collect($validated['weekend_days'])
@@ -419,11 +439,28 @@ class UserManagementController extends Controller
             ->only($holidays)
             ->all();
 
+        $defaultDailyTarget = max(0, (int) ($validated['default_daily_target'] ?? 8));
+        $defaultDailyDeliveryTarget = max(0, (int) ($validated['default_daily_delivery_target'] ?? config('target.default_daily_delivery_target', 0)));
+
+        $dailyTargetSource = (array) ($validated['daily_targets'] ?? []);
+        $dailyTargets = collect($dailyTargetSource)
+            ->mapWithKeys(function ($target, $date) {
+                return [trim((string) $date) => max(0, (int) $target)];
+            })
+            ->filter(fn($target, $date) => $date !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1)
+            ->all();
+
         AppSetting::setValue('workday', [
             'weekend_days' => $weekendDays,
             'holidays' => $holidays,
             'holiday_notes' => $holidayNotes,
         ], 'Konfigurasi hari kerja, weekend, dan hari libur nasional/cuti bersama.');
+
+        AppSetting::setValue('target', [
+            'default_daily_target' => $defaultDailyTarget,
+            'default_daily_delivery_target' => $defaultDailyDeliveryTarget,
+            'daily_targets' => $dailyTargets,
+        ], 'Konfigurasi target harian default dan target khusus per tanggal.');
 
         return back()->with('success', 'Pengaturan hari kerja berhasil disimpan.');
     }

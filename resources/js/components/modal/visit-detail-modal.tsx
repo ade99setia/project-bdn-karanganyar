@@ -65,7 +65,7 @@ const VisitDetailModal = ({
         maximumFractionDigits: 0,
     }).format(value);
 
-    const isNegativeAction = (actionType: string) => actionType === 'retur' || actionType === 'returned';
+    const isNegativeAction = (actionType: string) => actionType === 'retur';
 
     
     // Helper untuk mempersingkat pemanggilan preview image

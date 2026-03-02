@@ -41,6 +41,7 @@ interface VisitHistorySectionProps {
     totalPages: number;
     onPrevPage: () => void;
     onNextPage: () => void;
+    layout?: 'list' | 'grid2';
 }
 
 export default function VisitHistorySection({
@@ -58,7 +59,9 @@ export default function VisitHistorySection({
     totalPages,
     onPrevPage,
     onNextPage,
+    layout = 'list',
 }: VisitHistorySectionProps) {
+    const isGridLayout = layout === 'grid2';
     const selectedSalesName = selectedSalesId
         ? salesUsers.find(user => user.id === selectedSalesId)?.name
         : null;
@@ -86,7 +89,7 @@ export default function VisitHistorySection({
 
                     <div>
                         <h3 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight leading-none mb-1">
-                            Riwayat Kegiatan Santri
+                            Riwayat Aktivitas Tim Sales
                         </h3>
                         <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
                             Menampilkan data <span className="text-slate-900 dark:text-slate-200 font-bold">{startIndex + 1}-{Math.min(endIndex, totalItems)}</span> dari total <span className="text-slate-900 dark:text-slate-200 font-bold">{totalItems}</span> {selectedSalesName ? `untuk ${selectedSalesName}` : 'untuk semua sales'}
@@ -95,7 +98,7 @@ export default function VisitHistorySection({
                 </div>
             </div>
 
-            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            <div className={isGridLayout ? 'grid grid-cols-1 gap-3 p-3 md:grid-cols-2' : 'divide-y divide-slate-100 dark:divide-slate-800'}>
                 {currentItems.map((visit, index) => {
                     const itemNumber = startIndex + index + 1;
                     const isSelected = selectedVisit?.id === visit.id;
@@ -108,11 +111,18 @@ export default function VisitHistorySection({
                         <button
                             key={visit.id}
                             onClick={() => onSelectVisit(visit)}
-                            className={`w-full text-left p-4 sm:p-5 border-l-4 transition-all duration-200 group flex items-start sm:items-center gap-3 sm:gap-5
-                                ${isSelected
-                                    ? 'border-orange-500 bg-orange-100 dark:bg-orange-900/40 shadow-sm'
-                                    : `border-transparent ${zebraClass} hover:border-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20`
-                                }`}
+                            className={isGridLayout
+                                ? `w-full rounded-2xl border p-4 text-left transition-all duration-200 group flex items-start gap-3
+                                    ${isSelected
+                                        ? 'border-orange-500 bg-orange-100 dark:bg-orange-900/40 shadow-sm'
+                                        : `${zebraClass} border-slate-200 dark:border-slate-700 hover:border-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20`
+                                    }`
+                                : `w-full text-left p-4 sm:p-5 border-l-4 transition-all duration-200 group flex items-start sm:items-center gap-3 sm:gap-5
+                                    ${isSelected
+                                        ? 'border-orange-500 bg-orange-100 dark:bg-orange-900/40 shadow-sm'
+                                        : `border-transparent ${zebraClass} hover:border-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20`
+                                    }`
+                            }
                         >
                             <div className="shrink-0 mt-1 sm:mt-0">
                                 <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center transition-all duration-300 border shadow-sm

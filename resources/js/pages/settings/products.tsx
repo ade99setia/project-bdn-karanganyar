@@ -1,6 +1,7 @@
 import { Head, router, usePage } from '@inertiajs/react';
 import { Search, Plus, Package } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
+import MultiSelectFilter from '@/components/inputs/MultiSelectFilter';
 import FormModalProduct from '@/components/settings/products/FormModalProduct';
 import TableWithPaginationProduct from '@/components/settings/products/TableWithPaginationProduct';
 import AppLayout from '@/layouts/app-layout';
@@ -33,7 +34,7 @@ interface PageProps {
     products: Pagination<ProductRow>;
     filters: {
         search?: string;
-        category?: string;
+        category?: string | string[];
         per_page?: number;
     };
     categories: string[];
@@ -56,9 +57,15 @@ const breadcrumbs: BreadcrumbItem[] = [
 export default function ProductSettings() {
     const { products, filters, categories, flash } = usePage<PageProps>().props;
 
+    const parseCategoryFilter = (input?: string | string[]) => {
+        if (!input) return [];
+        if (Array.isArray(input)) return input.filter(Boolean);
+        return [input];
+    };
+
     const [searchInput, setSearchInput] = useState(filters.search || '');
     const perPage = filters.per_page || 10;
-    const [categoryFilter, setCategoryFilter] = useState<string | undefined>(filters.category || undefined);
+    const [categoryFilter, setCategoryFilter] = useState<string[]>(parseCategoryFilter(filters.category));
 
     const [showFormModal, setShowFormModal] = useState(false);
     const [editingProduct, setEditingProduct] = useState<ProductRow | null>(null);
@@ -76,15 +83,15 @@ export default function ProductSettings() {
     const isEdit = editingProduct !== null;
 
     const updateFilters = useCallback(
-        (newFilters: { search?: string; per_page?: number; page?: number; category?: string }) => {
+        (newFilters: { search?: string; per_page?: number; page?: number; category?: string[] }) => {
             const hasCategoryFilter = Object.prototype.hasOwnProperty.call(newFilters, 'category');
-            const nextCategory = hasCategoryFilter ? (newFilters.category || undefined) : categoryFilter;
+            const nextCategory = hasCategoryFilter ? (newFilters.category ?? []) : categoryFilter;
 
-            const params: Record<string, string | number | undefined> = {
+            const params: Record<string, string | number | string[] | undefined> = {
                 search: newFilters.search ?? (searchInput || undefined),
                 per_page: newFilters.per_page ?? perPage,
                 page: newFilters.page,
-                category: nextCategory,
+                category: nextCategory.length > 0 ? nextCategory : undefined,
             };
 
             router.get('/settings/products', params, {
@@ -237,27 +244,25 @@ export default function ProductSettings() {
                             </div>
 
                             <div className="w-full md:w-56">
-                                <select
-                                    value={categoryFilter || ''}
-                                    onChange={(e) => {
-                                        const value = e.target.value || undefined;
-                                        setCategoryFilter(value);
-                                        updateFilters({ category: value, page: 1 });
+                                <MultiSelectFilter
+                                    options={categories.map((category) => ({
+                                        label: category,
+                                        value: category,
+                                    }))}
+                                    value={categoryFilter}
+                                    onChange={(values) => {
+                                        setCategoryFilter(values);
+                                        updateFilters({ category: values, page: 1 });
                                     }}
-                                    className="w-full rounded-xl border border-gray-300 bg-white py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800"
-                                >
-                                    <option value="">Semua Kategori</option>
-                                    {categories.map((cat) => (
-                                        <option key={cat} value={cat}>
-                                            {cat}
-                                        </option>
-                                    ))}
-                                </select>
+                                    placeholder="Semua Kategori"
+                                    searchPlaceholder="Cari kategori..."
+                                    className="w-full"
+                                />
                             </div>
 
                             <button
                                 onClick={() => openCreateModal()}
-                                className="flex items-center gap-2 rounded-xl bg-linear-to-br from-indigo-600 to-purple-600 px-6 py-3 font-semibold text-white shadow-lg transition hover:from-indigo-700 hover:to-purple-700 md:py-4"
+                                className="flex items-center gap-2 rounded-xl bg-linear-to-br from-indigo-600 to-purple-600 px-6 py-4 font-semibold text-white shadow-lg transition hover:from-indigo-700 hover:to-purple-700 md:py-4.5"
                             >
                                 <Plus className="h-5 w-5" />
                                 Tambah Produk

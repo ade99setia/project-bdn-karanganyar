@@ -83,12 +83,12 @@ class SalesVisitProduct extends Model
 
     public function isTerjual(): bool
     {
-        return in_array($this->action_type, [self::ACTION_TERJUAL, 'sold'], true);
+        return $this->action_type === self::ACTION_TERJUAL;
     }
 
     public function isRetur(): bool
     {
-        return in_array($this->action_type, [self::ACTION_RETUR, 'returned'], true);
+        return $this->action_type === self::ACTION_RETUR;
     }
 
     public function isNegativeAction(): bool

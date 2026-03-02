@@ -15,6 +15,10 @@ type DashboardStats = {
     target_visit_month: number;
     visit_completion_today: number;
     visit_completion_month: number;
+    collection_status_visit: number;
+    collection_status_delivery: number;
+    collection_target_visit: number;
+    collection_target_delivery: number;
 };
 
 type CollectionStatusProps = {
@@ -85,37 +89,69 @@ const BreakdownList = ({ title, icon, data }: { title: string; icon: ReactNode; 
 };
 
 export default function CollectionStatus({ stats, activityBreakdown, productActionBreakdown }: CollectionStatusProps) {
-    const dailyGap = stats.target_visit_today - stats.visits_today;
-    const monthlyGap = stats.target_visit_month - stats.visits_this_month;
+    const hasProductActionData = productActionBreakdown.length > 0;
+    const collectionStatusTotal = stats.collection_status_visit + stats.collection_status_delivery;
+    const collectionTargetTotal = stats.collection_target_visit + stats.collection_target_delivery;
+
+    const statusCompletion = collectionTargetTotal > 0
+        ? (collectionStatusTotal / collectionTargetTotal) * 100
+        : 0;
+
+    const targetVisitShare = collectionTargetTotal > 0
+        ? (stats.collection_target_visit / collectionTargetTotal) * 100
+        : 0;
+
+    const targetDeliveryShare = collectionTargetTotal > 0
+        ? (stats.collection_target_delivery / collectionTargetTotal) * 100
+        : 0;
+
+    const safeStatusCompletion = Math.max(0, Math.min(100, statusCompletion));
+
+    const statusGap = collectionTargetTotal - collectionStatusTotal;
+
+    const targetBreakdown: BreakdownItem[] = [
+        {
+            label: 'Kunjungan',
+            value: stats.collection_target_visit,
+            percent: targetVisitShare,
+            color: 'bg-blue-500',
+        },
+        {
+            label: 'Pengiriman',
+            value: stats.collection_target_delivery,
+            percent: targetDeliveryShare,
+            color: 'bg-emerald-500',
+        },
+    ];
 
     return (
         <div className="grid gap-6 lg:grid-cols-2">
             <div className="group flex flex-col gap-4 rounded-lg border bg-white p-6 shadow-sm transition-transform duration-300 hover:scale-[1.01] dark:border-gray-700 dark:bg-gray-800">
                 <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-800 dark:text-gray-200">
                     <ClipboardListIcon className="h-5 w-5 text-orange-600" />
-                    Detail Collection Target
+                    Detail Collection Status
                 </h2>
 
                 <div className="flex items-center justify-between rounded-lg bg-orange-50 p-3 dark:bg-orange-900/20">
-                    <div className="text-sm font-bold text-orange-700 dark:text-orange-300">{stats.visits_today} Visit</div>
-                    <div className="text-sm font-bold text-blue-700 dark:text-blue-300">Target {stats.target_visit_today}</div>
-                    <div className="text-sm font-bold text-emerald-700 dark:text-emerald-300">{stats.visit_completion_today.toFixed(2)}%</div>
+                    <div className="text-sm font-bold text-orange-700 dark:text-orange-300">Kunjungan: {stats.collection_status_visit}</div>
+                    <div className="text-sm font-bold text-blue-700 dark:text-blue-300">Pengiriman: {stats.collection_status_delivery}</div>
+                    <div className="text-sm font-bold text-emerald-700 dark:text-emerald-300">Total: {collectionStatusTotal}</div>
                 </div>
 
                 <div className="flex justify-center py-2">
-                    <ProgressCircle value={stats.visit_completion_today} color="text-orange-500" />
+                    <ProgressCircle value={statusCompletion} color="text-orange-500" />
                 </div>
 
                 <div className="space-y-2 text-sm text-gray-700 dark:text-gray-200">
                     <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1"><Target className="h-4 w-4 text-blue-600" /> Harian</span>
-                        <span className="font-semibold">{stats.visits_today}/{stats.target_visit_today} visit</span>
+                        <span className="flex items-center gap-1"><Target className="h-4 w-4 text-blue-600" /> Status vs Target</span>
+                        <span className="font-semibold">{collectionStatusTotal}/{collectionTargetTotal} collection</span>
                     </div>
                     <div className="h-2.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-600">
-                        <div className="h-full rounded-full bg-orange-500" style={{ width: `${Math.min(100, stats.visit_completion_today)}%` }} />
+                        <div className="h-full rounded-full bg-orange-500" style={{ width: `${safeStatusCompletion}%` }} />
                     </div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                        GAP hari ini: <span className={dailyGap > 0 ? 'font-semibold text-rose-500' : 'font-semibold text-emerald-500'}>{dailyGap > 0 ? `-${dailyGap}` : `+${Math.abs(dailyGap)}`}</span> visit
+                        GAP status: <span className={statusGap > 0 ? 'font-semibold text-rose-500' : 'font-semibold text-emerald-500'}>{statusGap > 0 ? `-${statusGap}` : `+${Math.abs(statusGap)}`}</span> collection
                     </div>
                 </div>
 
@@ -129,36 +165,37 @@ export default function CollectionStatus({ stats, activityBreakdown, productActi
             <div className="group flex flex-col gap-4 rounded-lg border bg-white p-6 shadow-sm transition-transform duration-300 hover:scale-[1.01] dark:border-gray-700 dark:bg-gray-800">
                 <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-800 dark:text-gray-200">
                     <TrendingUp className="h-5 w-5 text-blue-600" />
-                    Detail Collection Status
+                    Detail Collection Target
                 </h2>
 
                 <div className="flex items-center justify-between rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20">
-                    <div className="text-sm font-bold text-blue-700 dark:text-blue-300">{stats.visits_this_month} Visit</div>
-                    <div className="text-sm font-bold text-orange-700 dark:text-orange-300">Target {stats.target_visit_month}</div>
-                    <div className="text-sm font-bold text-emerald-700 dark:text-emerald-300">{stats.visit_completion_month.toFixed(2)}%</div>
+                    <div className="text-sm font-bold text-blue-700 dark:text-blue-300">Kunjungan: {stats.collection_target_visit}</div>
+                    <div className="text-sm font-bold text-orange-700 dark:text-orange-300">Pengiriman: {stats.collection_target_delivery}</div>
+                    <div className="text-sm font-bold text-emerald-700 dark:text-emerald-300">Total: {collectionTargetTotal}</div>
                 </div>
 
                 <div className="flex justify-center py-2">
-                    <ProgressCircle value={stats.visit_completion_month} color="text-blue-500" />
+                    <ProgressCircle value={100} color="text-blue-500" />
                 </div>
 
                 <div className="space-y-2 text-sm text-gray-700 dark:text-gray-200">
                     <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1"><Target className="h-4 w-4 text-orange-600" /> Bulanan</span>
-                        <span className="font-semibold">{stats.visits_this_month}/{stats.target_visit_month} visit</span>
+                        <span className="flex items-center gap-1"><Target className="h-4 w-4 text-orange-600" /> Sumber Target</span>
+                        <span className="font-semibold">App Settings</span>
                     </div>
                     <div className="h-2.5 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-600">
-                        <div className="h-full rounded-full bg-blue-500" style={{ width: `${Math.min(100, stats.visit_completion_month)}%` }} />
+                        <div className="h-full rounded-full bg-blue-500" style={{ width: '100%' }} />
                     </div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                        GAP bulan ini: <span className={monthlyGap > 0 ? 'font-semibold text-rose-500' : 'font-semibold text-emerald-500'}>{monthlyGap > 0 ? `-${monthlyGap}` : `+${Math.abs(monthlyGap)}`}</span> visit
+                        Target collection mengikuti konfigurasi app_settings.target.
+                        {hasProductActionData ? ' Aktivitas produk tetap tersedia di histori kunjungan.' : ''}
                     </div>
                 </div>
 
                 <BreakdownList
-                    title="Aksi Produk oleh Tim"
+                    title="Komposisi Target Collection"
                     icon={<ClipboardListIcon className="h-4 w-4 text-blue-500" />}
-                    data={productActionBreakdown}
+                    data={targetBreakdown}
                 />
             </div>
         </div>

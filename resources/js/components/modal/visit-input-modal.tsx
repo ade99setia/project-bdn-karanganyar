@@ -170,7 +170,7 @@ export default function VisitInputModal({
         && hasPhoto
         && (isKunjungan || (isPengiriman && cart.length > 0));
 
-    const isTerjualAction = tempAction === 'terjual' || tempAction === 'sold';
+    const isTerjualAction = tempAction === 'terjual';
     const maxQtyForCurrentSelection = isTerjualAction ? remainingStockForSelectedProduct : null;
     const selectableProducts = products.filter((product) => Number(product.stock_quantity ?? 0) > 0);
 
@@ -927,7 +927,7 @@ export default function VisitInputModal({
                                                     const cartProduct = products.find(p => p.id === item.product_id);
                                                     const unitPrice = item.unit_price ?? cartProduct?.price ?? 0;
                                                     const itemTotal = unitPrice * item.quantity;
-                                                    const isRetur = item.action_type === 'retur' || item.action_type === 'returned';
+                                                    const isRetur = item.action_type === 'retur';
                                                     const displayValue = isRetur ? -itemTotal : itemTotal;
 
                                                     return (
@@ -968,7 +968,7 @@ export default function VisitInputModal({
                                                             const cartProduct = products.find(p => p.id === item.product_id);
                                                             const unitPrice = item.unit_price ?? cartProduct?.price ?? 0;
                                                             const itemTotal = unitPrice * item.quantity;
-                                                            const isNegative = item.action_type === 'retur' || item.action_type === 'returned';
+                                                            const isNegative = item.action_type === 'retur';
                                                             return sum + (isNegative ? -itemTotal : itemTotal);
                                                         }, 0);
                                                         return total >= 0
@@ -981,7 +981,7 @@ export default function VisitInputModal({
                                                                 const cartProduct = products.find(p => p.id === item.product_id);
                                                                 const unitPrice = item.unit_price ?? cartProduct?.price ?? 0;
                                                                 const itemTotal = unitPrice * item.quantity;
-                                                                const isNegative = item.action_type === 'retur' || item.action_type === 'returned';
+                                                                const isNegative = item.action_type === 'retur';
                                                                 return sum + (isNegative ? -itemTotal : itemTotal);
                                                             }, 0);
                                                             return total >= 0 ? 'text-green-700 dark:text-green-100' : 'text-red-700 dark:text-red-100';
@@ -991,7 +991,7 @@ export default function VisitInputModal({
                                                                     const cartProduct = products.find(p => p.id === item.product_id);
                                                                     const unitPrice = item.unit_price ?? cartProduct?.price ?? 0;
                                                                     const itemTotal = unitPrice * item.quantity;
-                                                                    const isNegative = item.action_type === 'retur' || item.action_type === 'returned';
+                                                                    const isNegative = item.action_type === 'retur';
                                                                     return sum + (isNegative ? -itemTotal : itemTotal);
                                                                 }, 0);
                                                                 return (total >= 0 ? '+' : '') + new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(total);
@@ -1031,7 +1031,7 @@ export default function VisitInputModal({
                                 showAlert(
                                     'Konfirmasi Kirim Laporan',
                                     'Apakah Anda yakin ingin mengirim laporan kunjungan ini?',
-                                    'warning',
+                                    'info',
                                     () => {
                                         onSubmit();
                                     }
