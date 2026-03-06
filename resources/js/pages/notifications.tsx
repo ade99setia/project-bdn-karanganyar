@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { Head, Link } from '@inertiajs/react';
-import { Bell, Send, CheckCheck, Clock3, BellRing } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Bell, CheckCheck, Clock3, BellRing } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import AlertModal from '@/components/modal/alert-modal';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import AppLayout from '@/layouts/app-layout';
@@ -77,6 +77,9 @@ type AlertConfigType = {
     type: 'success' | 'error' | 'warning' | 'info';
 };
 
+type ReadFilter = 'unread' | 'read';
+const READ_FILTER_STORAGE_KEY = 'notifications.readFilter';
+
 export default function SalesNotifications({ notifications, unreadCount }: Props) {
     const Layout = Capacitor.isNativePlatform() ? AppLayoutMobile : AppLayout;
 
@@ -104,6 +107,28 @@ export default function SalesNotifications({ notifications, unreadCount }: Props
     const [isPushEnabled, setIsPushEnabled] = useState(false);
     const [isCheckingPushStatus, setIsCheckingPushStatus] = useState(Capacitor.isNativePlatform());
     const [isTogglingPush, setIsTogglingPush] = useState(false);
+    const [readFilter, setReadFilter] = useState<ReadFilter>(() => {
+        if (typeof window === 'undefined') {
+            return 'unread';
+        }
+
+        const storedFilter = window.localStorage.getItem(READ_FILTER_STORAGE_KEY);
+        return storedFilter === 'read' ? 'read' : 'unread';
+    });
+
+    const unreadNotifications = useMemo(() => {
+        return notifications.data.filter((notification) => notification.status === 'unread');
+    }, [notifications.data]);
+
+    const readNotifications = useMemo(() => {
+        return notifications.data.filter((notification) => notification.status !== 'unread');
+    }, [notifications.data]);
+
+    const filteredNotifications = readFilter === 'unread' ? unreadNotifications : readNotifications;
+
+    useEffect(() => {
+        window.localStorage.setItem(READ_FILTER_STORAGE_KEY, readFilter);
+    }, [readFilter]);
 
     useEffect(() => {
         if (!Capacitor.isNativePlatform()) {
@@ -181,14 +206,6 @@ export default function SalesNotifications({ notifications, unreadCount }: Props
         PushNotificationService.markAllAsRead();
     };
 
-    const handleSendTestPush = (scope: 'self' | 'all_users' = 'self') => {
-        PushNotificationService.sendTest({
-            scope,
-            onSuccess: (message) => showAlert('Berhasil', message, 'success'),
-            onError: (message) => showAlert('Gagal', message, 'error'),
-        });
-    };
-
     return (
         <Layout breadcrumbs={breadcrumbs}>
             <Head title="Notifikasi" />
@@ -231,26 +248,6 @@ export default function SalesNotifications({ notifications, unreadCount }: Props
 
                                 <button
                                     type="button"
-                                    onClick={() => handleSendTestPush('self')}
-                                    className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
-                                >
-                                    <Send size={16} />
-                                    Tes Push Saya
-                                </button>
-
-                                {/* {isAdmin && ( */}
-                                <button
-                                    type="button"
-                                    onClick={() => handleSendTestPush('all_users')}
-                                    className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
-                                >
-                                    <Send size={16} />
-                                    Tes Push Semua User
-                                </button>
-                                {/* )} */}
-
-                                <button
-                                    type="button"
                                     onClick={handleMarkAllAsRead}
                                     disabled={unreadCount === 0}
                                     className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
@@ -263,13 +260,38 @@ export default function SalesNotifications({ notifications, unreadCount }: Props
                     </div>
 
                     <div className="space-y-3">
-                        {notifications.data.length === 0 && (
+                        <div className="mb-2 flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setReadFilter('unread')}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${readFilter === 'unread'
+                                    ? 'bg-orange-500 text-white'
+                                    : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-800'
+                                    }`}
+                            >
+                                Belum Dibaca ({unreadNotifications.length})
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setReadFilter('read')}
+                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${readFilter === 'read'
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-800'
+                                    }`}
+                            >
+                                Sudah Dibaca ({readNotifications.length})
+                            </button>
+                        </div>
+
+                        {filteredNotifications.length === 0 && (
                             <div className="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-black/5 dark:bg-slate-900 dark:ring-white/10">
-                                <p className="text-sm text-slate-500 dark:text-slate-400">Belum ada notifikasi.</p>
+                                <p className="text-sm text-slate-500 dark:text-slate-400">
+                                    {readFilter === 'unread' ? 'Tidak ada notifikasi belum dibaca.' : 'Tidak ada notifikasi yang sudah dibaca.'}
+                                </p>
                             </div>
                         )}
 
-                        {notifications.data.map((notification) => {
+                        {filteredNotifications.map((notification) => {
                             const isUnread = notification.status === 'unread';
                             const hasActionLink = !!notification.action_url && !isReadEndpointUrl(notification.action_url);
 

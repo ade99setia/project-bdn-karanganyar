@@ -1,14 +1,18 @@
 import { router } from '@inertiajs/react';
 import axios from 'axios';
 import { useMemo, useState } from 'react';
+import { PushNotificationService } from '@/services/push-notification-service';
 import type { SalesUser, StockAdjustForm, StockAdjustLine } from '../types';
+import type { Product, Warehouse } from '../types';
 
 interface UseStockAdjustmentParams {
     salesUsers: SalesUser[];
+    products: Product[];
+    warehouses: Warehouse[];
     showAlert: (title: string, message: React.ReactNode, type?: 'success' | 'error' | 'warning' | 'info') => void;
 }
 
-export function useStockAdjustment({ salesUsers, showAlert }: UseStockAdjustmentParams) {
+export function useStockAdjustment({ salesUsers, products, warehouses, showAlert }: UseStockAdjustmentParams) {
     const [stockAdjustLoading, setStockAdjustLoading] = useState(false);
     const [stockAdjustProgress, setStockAdjustProgress] = useState<{ current: number; total: number } | null>(null);
     const [confirmPreviewOpen, setConfirmPreviewOpen] = useState(false);
@@ -36,6 +40,60 @@ export function useStockAdjustment({ salesUsers, showAlert }: UseStockAdjustment
         });
     }, [salesUsers, stockAdjustForm.warehouse_id]);
 
+    const sendOutAssignmentNotifications = async (assignments: Array<{ user_id: number; quantity: number; reference?: string | null }>) => {
+        if (stockAdjustForm.type !== 'out' || assignments.length === 0) {
+            return;
+        }
+
+        const product = products.find((item) => String(item.id) === String(stockAdjustForm.product_id));
+        const warehouse = warehouses.find((item) => String(item.id) === String(stockAdjustForm.warehouse_id));
+
+        const aggregated = new Map<number, { quantity: number; references: string[] }>();
+
+        assignments.forEach((assignment) => {
+            const current = aggregated.get(assignment.user_id) ?? { quantity: 0, references: [] };
+            current.quantity += Number(assignment.quantity || 0);
+
+            const cleanReference = (assignment.reference ?? '').trim();
+            if (cleanReference && !current.references.includes(cleanReference)) {
+                current.references.push(cleanReference);
+            }
+
+            aggregated.set(assignment.user_id, current);
+        });
+
+        let failedCount = 0;
+
+        for (const [userId, info] of aggregated.entries()) {
+            const user = salesUsers.find((salesUser) => salesUser.id === userId);
+            const productLabel = product?.name ?? 'produk';
+            const warehouseLabel = warehouse?.name ?? 'gudang';
+            const referencesText = info.references.length > 0 ? ` Ref: ${info.references.join(', ')}.` : '';
+
+            try {
+                await PushNotificationService.sendTargeted({
+                    targetUserIds: [userId],
+                    title: 'Assign Stok Baru',
+                    message: `Halo ${user?.name ?? 'Sales'}, Anda menerima ${info.quantity} pcs ${productLabel} dari ${warehouseLabel}.${referencesText}`,
+                    type: 'stock_assignment',
+                    actionUrl: '/notifications',
+                    data: {
+                        product_id: Number(stockAdjustForm.product_id),
+                        warehouse_id: Number(stockAdjustForm.warehouse_id),
+                        quantity: info.quantity,
+                        references: info.references,
+                    },
+                });
+            } catch {
+                failedCount += 1;
+            }
+        }
+
+        if (failedCount > 0) {
+            throw new Error('Sebagian notifikasi assign gagal dikirim.');
+        }
+    };
+
     const submitStockAdjustment = async (availableOutStock?: number) => {
         if (!stockAdjustForm.product_id || !stockAdjustForm.warehouse_id) {
             return;
@@ -44,6 +102,7 @@ export function useStockAdjustment({ salesUsers, showAlert }: UseStockAdjustment
         if (stockAdjustLines.length > 0) {
             setStockAdjustLoading(true);
             setStockAdjustProgress({ current: 0, total: stockAdjustLines.length });
+            const successfulOutAssignments: Array<{ user_id: number; quantity: number; reference?: string | null }> = [];
 
             for (let i = 0; i < stockAdjustLines.length; i += 1) {
                 const line = stockAdjustLines[i];
@@ -61,6 +120,14 @@ export function useStockAdjustment({ salesUsers, showAlert }: UseStockAdjustment
 
                 try {
                     await axios.post('/settings/stocks/adjust', payload);
+
+                    if (stockAdjustForm.type === 'out') {
+                        successfulOutAssignments.push({
+                            user_id: Number(line.user_id),
+                            quantity: Number(line.quantity),
+                            reference: line.reference ?? null,
+                        });
+                    }
                 } catch (err: unknown) {
                     let msg = `Gagal menyimpan baris ${i + 1}`;
                     if (typeof err === 'object' && err !== null) {
@@ -77,6 +144,12 @@ export function useStockAdjustment({ salesUsers, showAlert }: UseStockAdjustment
                     setStockAdjustProgress(null);
                     return showAlert('Gagal', msg, 'error');
                 }
+            }
+
+            try {
+                await sendOutAssignmentNotifications(successfulOutAssignments);
+            } catch {
+                showAlert('Peringatan', 'Stok tersimpan, namun ada notifikasi assign yang belum terkirim.', 'warning');
             }
 
             setStockAdjustLines([]);
@@ -107,6 +180,14 @@ export function useStockAdjustment({ salesUsers, showAlert }: UseStockAdjustment
         }
 
         setStockAdjustLoading(true);
+        const singleOutAssignment = stockAdjustForm.type === 'out'
+            ? [{
+                user_id: Number(stockAdjustForm.user_id),
+                quantity: Number(stockAdjustForm.quantity),
+                reference: stockAdjustForm.reference.trim() || null,
+            }]
+            : [];
+
         router.post('/settings/stocks/adjust', {
             product_id: Number(stockAdjustForm.product_id),
             warehouse_id: Number(stockAdjustForm.warehouse_id),
@@ -118,6 +199,12 @@ export function useStockAdjustment({ salesUsers, showAlert }: UseStockAdjustment
         }, {
             preserveScroll: true,
             onSuccess: () => {
+                if (singleOutAssignment.length > 0) {
+                    void sendOutAssignmentNotifications(singleOutAssignment).catch(() => {
+                        showAlert('Peringatan', 'Stok tersimpan, namun notifikasi assign belum terkirim.', 'warning');
+                    });
+                }
+
                 setStockAdjustForm((prev) => ({
                     ...prev,
                     user_id: prev.type === 'out' ? prev.user_id : '',

@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { Link, usePage } from '@inertiajs/react';
-import { PhoneCall, LayoutGrid, MonitorCheck, RefreshCcwDot, Headset, LibraryBig, CalendarDays, Warehouse, Package, Users } from 'lucide-react';
+import { PhoneCall, LayoutGrid, MonitorCheck, RefreshCcwDot, Headset, LibraryBig, CalendarDays, Warehouse, Package, Users, Bell } from 'lucide-react';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -86,6 +86,11 @@ export function AppSidebar() {
                     title: 'Products',
                     href: '/settings/products',
                     icon: Package,
+                },
+                {
+                    title: 'Announcements',
+                    href: '/settings/announcements',
+                    icon: Bell,
                 },
                 {
                     title: 'Stockist',

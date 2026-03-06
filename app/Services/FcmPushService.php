@@ -15,6 +15,9 @@ class FcmPushService
         $tokens = UserDeviceToken::query()
             ->where('user_id', $notification->user_id)
             ->where('is_active', true)
+            ->whereNotNull('token')
+            ->where('token', '!=', '')
+            ->distinct()
             ->pluck('token')
             ->values();
 
@@ -22,6 +25,7 @@ class FcmPushService
             return [
                 'sent' => 0,
                 'failed' => 0,
+                'target_device_count' => 0,
                 'message' => 'Tidak ada token perangkat aktif.',
             ];
         }
@@ -30,11 +34,14 @@ class FcmPushService
         $failed = 0;
 
         foreach ($tokens as $token) {
+            $notificationData = is_array($notification->data) ? $notification->data : [];
+
             $ok = $this->sendToToken(
                 token: (string) $token,
                 title: $notification->title,
                 body: $notification->message,
                 data: [
+                    ...$notificationData,
                     'notification_id' => (string) $notification->id,
                     'type' => (string) $notification->type,
                     'action_url' => (string) ($notification->safe_action_url ?? '/notifications'),
@@ -54,6 +61,7 @@ class FcmPushService
         return [
             'sent' => $sent,
             'failed' => $failed,
+            'target_device_count' => $tokens->count(),
             'message' => "Push terkirim ke {$sent} perangkat, gagal {$failed}.",
         ];
     }

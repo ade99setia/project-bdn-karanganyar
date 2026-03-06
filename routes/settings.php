@@ -5,6 +5,7 @@ use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\TwoFactorAuthenticationController;
 use App\Http\Controllers\Settings\UserManagementController;
 use App\Http\Controllers\Settings\ProductManagementController;
+use App\Http\Controllers\Settings\NotificationManagementController;
 use App\Http\Controllers\Settings\StockistManagementController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -69,6 +70,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('settings.products.update');
     Route::delete('settings/products/{product}', [ProductManagementController::class, 'destroy'])
         ->name('settings.products.destroy');
+
+    // Announcement Management Routes
+    Route::redirect('settings/notifications', '/settings/announcements');
+    Route::get('settings/announcements', [NotificationManagementController::class, 'index'])
+        ->name('settings.announcements.index');
 
     // Stockist Management Routes
     Route::get('settings/stockist', [StockistManagementController::class, 'index'])

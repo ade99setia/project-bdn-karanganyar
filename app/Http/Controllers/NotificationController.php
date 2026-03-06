@@ -2,11 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Announcement;
 use App\Models\UserDeviceToken;
 use App\Models\UserNotification;
 use App\Services\FcmPushService;
+use DOMDocument;
+use DOMElement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Mews\Purifier\Facades\Purifier;
 use Inertia\Inertia;
 
 class NotificationController extends Controller
@@ -226,93 +230,244 @@ class NotificationController extends Controller
         ]);
     }
 
-    public function sendTestPush(Request $request, FcmPushService $fcmPushService)
+    public function sendTargetedPush(Request $request, FcmPushService $fcmPushService)
     {
-        $user = $request->user();
-
         $validated = $request->validate([
-            'title' => ['nullable', 'string', 'max:120'],
-            'message' => ['nullable', 'string', 'max:500'],
+            'target_user_ids' => ['required', 'array', 'min:1'],
+            'target_user_ids.*' => ['integer', 'exists:users,id'],
+            'title' => ['required', 'string', 'max:120'],
+            'message' => ['required', 'string', 'max:500'],
+            'announcement_title' => ['nullable', 'string', 'max:180'],
+            'announcement_content' => ['nullable', 'string'],
             'priority' => ['nullable', 'in:low,normal,high'],
-            'scope' => ['nullable', 'in:self,all_users'],
+            'type' => ['nullable', 'string', 'max:80'],
+            'action_url' => ['nullable', 'string', 'max:255', 'regex:/^\/[^\s]*$/'],
+            'data' => ['nullable', 'array'],
         ]);
 
-        $scope = (string) ($validated['scope'] ?? 'self');
+        $targetUserIds = collect($validated['target_user_ids'])
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
 
-        try {
-            if ($scope === 'all_users') {
-                // if ($user->role_name !== 'admin') {
-                //     return back()->with('error', 'Hanya admin yang dapat mengirim test push ke semua user.');
-                // }
+        if ($targetUserIds->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Target user tidak valid.',
+                'sent' => 0,
+                'failed' => 0,
+                'recipient_count' => 0,
+                'skipped_no_token' => 0,
+            ], 422);
+        }
 
-                $targetUserIds = UserDeviceToken::query()
-                    ->where('is_active', true)
-                    ->distinct()
-                    ->pluck('user_id')
-                    ->filter()
-                    ->values();
+        $eligibleUserIds = UserDeviceToken::query()
+            ->whereIn('user_id', $targetUserIds)
+            ->where('is_active', true)
+            ->whereNotNull('token')
+            ->where('token', '!=', '')
+            ->distinct()
+            ->pluck('user_id')
+            ->map(fn ($id) => (int) $id)
+            ->values();
 
-                if ($targetUserIds->isEmpty()) {
-                    return back()->with('warning', 'Tidak ada user dengan device token aktif.');
-                }
+        if ($eligibleUserIds->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tidak ada target user dengan token device aktif.',
+                'sent' => 0,
+                'failed' => 0,
+                'recipient_count' => 0,
+                'skipped_no_token' => $targetUserIds->count(),
+            ], 422);
+        }
 
-                $totalSent = 0;
-                $totalFailed = 0;
+        $skippedNoToken = max($targetUserIds->count() - $eligibleUserIds->count(), 0);
 
-                foreach ($targetUserIds as $targetUserId) {
-                    $notification = UserNotification::create([
-                        'user_id' => (int) $targetUserId,
-                        'type' => 'test_push',
-                        'title' => $validated['title'] ?? 'Tes Push Notifikasi',
-                        'message' => $validated['message'] ?? 'Push notifikasi test dari admin berhasil dibuat.',
-                        'status' => UserNotification::STATUS_UNREAD,
-                        'channel' => UserNotification::CHANNEL_PUSH,
-                        'priority' => $validated['priority'] ?? UserNotification::PRIORITY_HIGH,
-                        'action_url' => '/notifications',
-                        'sent_at' => now(),
-                    ]);
+        $type = $validated['type'] ?? 'targeted_push';
+        $priority = $validated['priority'] ?? UserNotification::PRIORITY_NORMAL;
+        $requestedActionUrl = isset($validated['action_url']) && is_string($validated['action_url'])
+            ? trim($validated['action_url'])
+            : '';
+        $announcementContent = isset($validated['announcement_content']) && is_string($validated['announcement_content'])
+            ? $this->sanitizeAnnouncementHtml($validated['announcement_content'])
+            : '';
+        $announcement = null;
 
-                    $result = $fcmPushService->sendUserNotification($notification);
-                    $totalSent += (int) ($result['sent'] ?? 0);
-                    $totalFailed += (int) ($result['failed'] ?? 0);
-                }
+        if ($announcementContent !== '') {
+            $announcement = Announcement::create([
+                'title' => isset($validated['announcement_title']) && is_string($validated['announcement_title']) && trim($validated['announcement_title']) !== ''
+                    ? trim($validated['announcement_title'])
+                    : trim($validated['title']),
+                'content_html' => $announcementContent,
+                'created_by' => $request->user()?->id,
+            ]);
+        }
 
-                if ($totalSent === 0) {
-                    return back()->with('warning', 'Push ke semua user belum terkirim. Pastikan token device aktif tersedia.');
-                }
+        $actionUrl = $requestedActionUrl !== ''
+            ? $requestedActionUrl
+            : ($announcement ? '/announcements/' . $announcement->id : '/notifications');
+        $extraData = is_array($validated['data'] ?? null) ? $validated['data'] : [];
 
-                return back()->with(
-                    'success',
-                    "Push test broadcast terkirim {$totalSent} perangkat, gagal {$totalFailed}."
-                );
-            }
+        if ($announcement) {
+            $extraData['announcement_id'] = (string) $announcement->id;
+        }
 
+        $totalSent = 0;
+        $totalFailed = 0;
+        $totalTargetDevices = 0;
+
+        foreach ($eligibleUserIds as $targetUserId) {
             $notification = UserNotification::create([
-                'user_id' => $user->id,
-                'type' => 'test_push',
-                'title' => $validated['title'] ?? 'Tes Push Notifikasi',
-                'message' => $validated['message'] ?? 'Push notifikasi test dari sistem berhasil dibuat.',
+                'user_id' => (int) $targetUserId,
+                'announcement_id' => $announcement?->id,
+                'type' => $type,
+                'title' => $validated['title'],
+                'message' => $validated['message'],
+                'data' => $extraData,
                 'status' => UserNotification::STATUS_UNREAD,
                 'channel' => UserNotification::CHANNEL_PUSH,
-                'priority' => $validated['priority'] ?? UserNotification::PRIORITY_HIGH,
-                'action_url' => '/notifications',
+                'priority' => $priority,
+                'action_url' => $actionUrl,
                 'sent_at' => now(),
             ]);
 
             $result = $fcmPushService->sendUserNotification($notification);
+            $totalSent += (int) ($result['sent'] ?? 0);
+            $totalFailed += (int) ($result['failed'] ?? 0);
+            $totalTargetDevices += (int) ($result['target_device_count'] ?? 0);
+        }
 
-            if (($result['sent'] ?? 0) == 0) {
-                return back()->with('warning', $result['message'] ?? 'Push belum terkirim. Pastikan token device sudah terdaftar.');
-            }
+        return response()->json([
+            'success' => $totalSent > 0,
+            'message' => $totalSent > 0
+                ? "Push ditargetkan ke {$totalTargetDevices} perangkat, terkirim {$totalSent}, gagal {$totalFailed}, tanpa token {$skippedNoToken}."
+                : 'Push belum terkirim. Pastikan token device user aktif.',
+            'sent' => $totalSent,
+            'failed' => $totalFailed,
+            'target_device_count' => $totalTargetDevices,
+            'recipient_count' => $eligibleUserIds->count(),
+            'skipped_no_token' => $skippedNoToken,
+        ], $totalSent > 0 ? 200 : 422);
+    }
 
-            return back()->with('success', $result['message'] ?? 'Push notifikasi berhasil dikirim.');
-        } catch (\Throwable $e) {
-            Log::error('Error saat mengirim test push', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
+    private function sanitizeAnnouncementHtml(string $html): string
+    {
+        $candidateHtml = $html;
+        $containsDataImage = preg_match('/<img[^>]+src=["\']\s*data:image\//i', $html) === 1;
+
+        try {
+            $candidateHtml = Purifier::clean($html, [
+                'HTML.Allowed' => 'p,br,strong,b,em,i,u,a[href|target|rel],ul,ol,li,h1,h2,h3,h4,h5,h6,blockquote,img[src|alt|title],span,div',
+                'Attr.AllowedFrameTargets' => ['_blank'],
+                'AutoFormat.RemoveEmpty' => false,
+                'URI.SafeDataURI' => true,
+                'URI.AllowedSchemes' => [
+                    'http' => true,
+                    'https' => true,
+                    'data' => true,
+                ],
             ]);
 
-            return back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
+            if ($containsDataImage && preg_match('/<img[^>]+src=["\']\s*data:image\//i', $candidateHtml) !== 1) {
+                Log::info('Purifier menghapus data image URI, menggunakan sanitizer internal untuk mempertahankan gambar aman.');
+                $candidateHtml = $html;
+            }
+        } catch (\Throwable $exception) {
+            Log::warning('Purifier sanitize gagal, fallback ke sanitizer internal.', [
+                'error' => $exception->getMessage(),
+            ]);
+        }
+
+        $allowedTags = [
+            'p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 'ul', 'ol', 'li',
+            'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'img', 'span', 'div',
+        ];
+
+        $allowedAttributes = [
+            'a' => ['href', 'target', 'rel'],
+            'img' => ['src', 'alt', 'title'],
+        ];
+
+        $document = new DOMDocument();
+        $previousLibxmlState = libxml_use_internal_errors(true);
+
+        $wrappedHtml = '<div id="announcement-root">' . $candidateHtml . '</div>';
+        $document->loadHTML('<?xml encoding="utf-8" ?>' . $wrappedHtml, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previousLibxmlState);
+
+        $root = $document->getElementById('announcement-root');
+        if (!$root instanceof DOMElement) {
+            return '';
+        }
+
+        $this->sanitizeNodeRecursively($root, $allowedTags, $allowedAttributes);
+
+        $sanitizedParts = [];
+        foreach ($root->childNodes as $childNode) {
+            $sanitizedParts[] = $document->saveHTML($childNode) ?: '';
+        }
+
+        $sanitized = trim(implode('', $sanitizedParts));
+        $textOnly = trim(preg_replace('/\s+/', ' ', strip_tags($sanitized)) ?? '');
+
+        if ($textOnly === '' && !preg_match('/<img\b/i', $sanitized)) {
+            return '';
+        }
+
+        return $sanitized;
+    }
+
+    private function sanitizeNodeRecursively(DOMElement $node, array $allowedTags, array $allowedAttributes): void
+    {
+        for ($index = $node->childNodes->length - 1; $index >= 0; $index--) {
+            $child = $node->childNodes->item($index);
+
+            if (!$child instanceof DOMElement) {
+                continue;
+            }
+
+            $tagName = strtolower($child->tagName);
+
+            if (!in_array($tagName, $allowedTags, true)) {
+                $node->removeChild($child);
+                continue;
+            }
+
+            $allowedForTag = $allowedAttributes[$tagName] ?? [];
+            for ($attrIndex = $child->attributes->length - 1; $attrIndex >= 0; $attrIndex--) {
+                $attribute = $child->attributes->item($attrIndex);
+                if (!$attribute) {
+                    continue;
+                }
+
+                $attributeName = strtolower($attribute->nodeName);
+                if (!in_array($attributeName, $allowedForTag, true)) {
+                    $child->removeAttribute($attributeName);
+                    continue;
+                }
+
+                if ($tagName === 'a' && $attributeName === 'href') {
+                    $href = trim($attribute->nodeValue ?? '');
+                    if ($href === '' || preg_match('/^\s*javascript:/i', $href)) {
+                        $child->removeAttribute('href');
+                    }
+                }
+
+                if ($tagName === 'img' && $attributeName === 'src') {
+                    $src = trim($attribute->nodeValue ?? '');
+                    $isSafeDataImage = preg_match('/^data:image\/(png|jpeg|jpg|gif|webp);base64,/i', $src) === 1;
+                    $isSafeHttpImage = preg_match('/^https?:\/\//i', $src) === 1;
+
+                    if (!$isSafeDataImage && !$isSafeHttpImage) {
+                        $child->removeAttribute('src');
+                    }
+                }
+            }
+
+            $this->sanitizeNodeRecursively($child, $allowedTags, $allowedAttributes);
         }
     }
 

@@ -83,17 +83,44 @@ export function usePushNotifications(options: UsePushNotificationsOptions = {}) 
             body: string,
             data?: Record<string, unknown>
         ) => {
-            const actionUrl = data?.action_url;
+            const actionUrlCandidates = [
+                data?.action_url,
+                data?.actionUrl,
+                data?.deep_link,
+                data?.deeplink,
+                data?.url,
+            ];
 
-            if (actionUrl && typeof actionUrl === 'string') {
-                router.visit(actionUrl);
+            const actionUrl = actionUrlCandidates.find((value) => typeof value === 'string' && value.trim() !== '');
+            const resolvedActionUrl = typeof actionUrl === 'string' ? actionUrl.trim() : null;
+
+            const notificationIdRaw = data?.notification_id;
+            const notificationId =
+                typeof notificationIdRaw === 'number'
+                    ? notificationIdRaw
+                    : typeof notificationIdRaw === 'string' && /^\d+$/.test(notificationIdRaw)
+                        ? Number(notificationIdRaw)
+                        : null;
+
+            const navigationMode = typeof data?.navigation_mode === 'string'
+                ? data.navigation_mode.toLowerCase()
+                : null;
+
+            const shouldNavigateDirectly = navigationMode === 'direct';
+
+            if (resolvedActionUrl && (shouldNavigateDirectly || notificationId === null)) {
+                router.visit(resolvedActionUrl);
+            } else if (notificationId !== null) {
+                router.visit(`/notifications/${notificationId}/read`);
+            } else if (resolvedActionUrl) {
+                router.visit(resolvedActionUrl);
             }
 
             if (onActionPerformed) {
                 onActionPerformed(title, body, data);
             }
 
-            if (autoRefreshOnReceive && !actionUrl) {
+            if (autoRefreshOnReceive && notificationId === null && !resolvedActionUrl) {
                 router.reload({ only: ['notifications', 'unreadCount', 'unreadNotificationCount'] });
             }
         };

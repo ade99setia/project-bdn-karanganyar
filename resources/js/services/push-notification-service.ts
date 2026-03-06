@@ -1,13 +1,21 @@
 import { router } from '@inertiajs/react';
+import axios from 'axios';
 
-interface SendTestPushOptions {
-    title?: string;
-    message?: string;
+interface SendTargetedPushOptions {
+    targetUserIds: number[];
+    title: string;
+    message: string;
+    announcementTitle?: string;
+    announcementContent?: string;
     priority?: 'low' | 'normal' | 'high';
-    scope?: 'self' | 'all_users';
-    onSuccess?: (message: string) => void;
-    onError?: (message: string) => void;
+    type?: string;
+    actionUrl?: string;
+    data?: Record<string, unknown>;
 }
+
+const TARGETED_PUSH_PRIORITY_BY_TYPE: Record<string, 'low' | 'normal' | 'high'> = {
+    stock_assignment: 'normal',
+};
 
 /**
  * Push Notification Service
@@ -15,55 +23,56 @@ interface SendTestPushOptions {
  */
 export class PushNotificationService {
     /**
-     * Kirim test push notification ke user yang sedang login
-     * 
-     * @example
-     * ```typescript
-     * PushNotificationService.sendTest({
-     *   title: 'Tes Notifikasi',
-     *   message: 'Ini adalah test',
-     *   onSuccess: (msg) => showAlert('Berhasil', msg, 'success')
-     * });
-     * ```
+     * Kirim push notification ke user tertentu (targeted users)
      */
-    static sendTest(options: SendTestPushOptions = {}) {
+    static async sendTargeted(options: SendTargetedPushOptions) {
         const {
-            title = 'Tes Push Notifikasi',
-            message = 'Notifikasi push test berhasil dikirim ke perangkat Anda.',
-            priority = 'high',
-            scope = 'self',
-            onSuccess,
-            onError,
+            targetUserIds,
+            title,
+            message,
+            announcementTitle,
+            announcementContent,
+            priority,
+            type = 'targeted_push',
+            actionUrl,
+            data = {},
         } = options;
 
-        router.post(
-            '/notifications/test-push',
-            {
-                title,
-                message,
-                priority,
-                scope,
-            },
-            {
-                preserveScroll: true,
-                onSuccess: (page) => {
-                    const flash = (page.props as Record<string, unknown>).flash as Record<string, string> | undefined;
-                    if (flash?.success && onSuccess) {
-                        onSuccess(flash.success);
-                    } else if (flash?.error && onError) {
-                        onError(flash.error);
-                    } else if (flash?.warning && onError) {
-                        onError(flash.warning);
-                    }
-                },
-                onError: (errors) => {
-                    const errorMessage = Object.values(errors).join(', ');
-                    if (onError) {
-                        onError(errorMessage);
-                    }
-                },
-            }
-        );
+        const resolvedPriority = priority ?? TARGETED_PUSH_PRIORITY_BY_TYPE[type] ?? 'normal';
+
+        if (!Array.isArray(targetUserIds) || targetUserIds.length === 0) {
+            return {
+                success: false,
+                message: 'Target user kosong.',
+                sent: 0,
+                failed: 0,
+                target_device_count: 0,
+                recipient_count: 0,
+                skipped_no_token: 0,
+            };
+        }
+
+        const response = await axios.post('/notifications/targeted-push', {
+            target_user_ids: targetUserIds,
+            title,
+            message,
+            announcement_title: announcementTitle,
+            announcement_content: announcementContent,
+            priority: resolvedPriority,
+            type,
+            action_url: typeof actionUrl === 'string' && actionUrl.trim() !== '' ? actionUrl.trim() : undefined,
+            data,
+        });
+
+        return response.data as {
+            success: boolean;
+            message: string;
+            sent: number;
+            failed: number;
+            target_device_count: number;
+            recipient_count: number;
+            skipped_no_token: number;
+        };
     }
 
     /**

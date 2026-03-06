@@ -8,6 +8,7 @@ type Item = {
     subtitle?: string;
     image?: string | null;
     meta?: string;
+    tag?: string;
 };
 
 interface Props {
@@ -87,11 +88,20 @@ export default function UserMultiSelect({ items, value, onChange, label, placeho
                                                     <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
                                                 )
                                             )
+                                        ) : item.meta ? (
+                                            <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/30">
+                                                {item.meta}
+                                            </div>
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center"><ImageIcon size={14} className="text-zinc-400" /></div>
                                         )}
                                     </div>
                                     <div className="min-w-0 truncate">{item.title}</div>
+                                    {item.tag && (
+                                        <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                                            {item.tag}
+                                        </span>
+                                    )}
                                     <button type="button" onClick={(e) => { e.stopPropagation(); remove(id); }} className="text-zinc-400 hover:text-zinc-600">
                                         <X size={14} />
                                     </button>
@@ -119,37 +129,52 @@ export default function UserMultiSelect({ items, value, onChange, label, placeho
                         exit={{ opacity: 0 }}
                         className="absolute z-50 w-full mt-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-2xl max-h-60 overflow-y-auto p-2 thin-scrollbar"
                     >
-                        {filtered.map(i => (
-                            <button
-                                key={i.id}
-                                type="button"
-                                onClick={() => add(i.id)}
-                                className="w-full flex items-center gap-3 p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-colors text-left group"
-                            >
-                                <div className="w-10 h-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 overflow-hidden shrink-0 border border-zinc-200 dark:border-zinc-700">
-                                    {i.image ? (
-                                        <div
-                                            role="button"
-                                            tabIndex={0}
-                                            onClick={(e) => { e.stopPropagation(); if (onPreviewImage) onPreviewImage(i.image!); }}
-                                            className="w-full h-full block cursor-pointer group"
-                                        >
-                                            <img src={i.image} alt={i.title} className="w-full h-full object-cover group-hover:brightness-110 transition-all" />
+                        {filtered.length > 0 ? (
+                            filtered.map(i => (
+                                <button
+                                    key={i.id}
+                                    type="button"
+                                    onClick={() => add(i.id)}
+                                    className="w-full flex items-center gap-3 p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-xl transition-colors text-left group"
+                                >
+                                    <div className="w-10 h-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 overflow-hidden shrink-0 border border-zinc-200 dark:border-zinc-700">
+                                        {i.image ? (
+                                            <div
+                                                role="button"
+                                                tabIndex={0}
+                                                onClick={(e) => { e.stopPropagation(); if (onPreviewImage) onPreviewImage(i.image!); }}
+                                                className="w-full h-full block cursor-pointer group"
+                                            >
+                                                <img src={i.image} alt={i.title} className="w-full h-full object-cover group-hover:brightness-110 transition-all" />
+                                            </div>
+                                        ) : i.meta ? (
+                                            <div className="w-full h-full flex items-center justify-center text-sm font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/30">
+                                                {i.meta}
+                                            </div>
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center"><ImageIcon size={18} className="text-zinc-400" /></div>
+                                        )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <p className="text-sm font-bold dark:text-zinc-100 group-hover:text-indigo-600 transition-colors truncate">{i.title}</p>
+                                            {i.tag && (
+                                                <span className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                                                    {i.tag}
+                                                </span>
+                                            )}
                                         </div>
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center"><ImageIcon size={18} className="text-zinc-400" /></div>
-                                    )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-bold dark:text-zinc-100 group-hover:text-indigo-600 transition-colors truncate">{i.title}</p>
-                                    {i.subtitle && <p className="text-[11px] text-zinc-500 font-mono truncate">{i.subtitle}</p>}
-                                </div>
-                                <Plus size={14} className="text-zinc-300 group-hover:text-indigo-500" />
-                            </button>
-                        ))}
-
-                        {query.trim().length > 0 && filtered.length === 0 && (
-                            <div className="p-4 text-center text-zinc-500 text-xs italic">Data tidak ditemukan...</div>
+                                        {i.subtitle && <p className="text-[11px] text-zinc-500 font-mono truncate">{i.subtitle}</p>}
+                                    </div>
+                                    <Plus size={14} className="text-zinc-300 group-hover:text-indigo-500" />
+                                </button>
+                            ))
+                        ) : (
+                            <div className="p-4 text-center text-zinc-500 text-xs italic">
+                                {query.trim().length > 0
+                                    ? 'Data tidak ditemukan...'
+                                    : 'Tidak ada data tersedia.'}
+                            </div>
                         )}
                     </motion.div>
                 )}

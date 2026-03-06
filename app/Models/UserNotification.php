@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Models\Announcement;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class UserNotification extends Model
 {
@@ -23,6 +25,7 @@ class UserNotification extends Model
 
     protected $fillable = [
         'user_id',
+        'announcement_id',
         'type',
         'title',
         'message',
@@ -43,9 +46,14 @@ class UserNotification extends Model
         'sent_at' => 'datetime',
     ];
 
-    public function user()
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function announcement(): BelongsTo
+    {
+        return $this->belongsTo(Announcement::class);
     }
 
     public function scopeVisible($query)

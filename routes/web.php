@@ -14,6 +14,7 @@ use App\Http\Controllers\SalesUtilsController;
 use App\Http\Controllers\Utils\NearbyCustomerController;
 use App\Http\Controllers\SupervisorController;
 use App\Http\Controllers\SalesController;
+use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\NotificationController;
 use Laravel\Fortify\Http\Controllers\TwoFactorAuthenticatedSessionController;
 
@@ -75,8 +76,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('notifications/{notification}/unread', [NotificationController::class, 'markAsUnread'])
         ->whereNumber('notification');
 
-    // Testing route for sending push notifications (can be removed in production)    
-    Route::post('notifications/test-push', [NotificationController::class, 'sendTestPush']);
+    Route::post('notifications/targeted-push', [NotificationController::class, 'sendTargetedPush']);
+    Route::get('announcements/{announcement}', [AnnouncementController::class, 'show'])
+        ->whereNumber('announcement');
 
     // Sync Center atau Semi-Offline Page
     Route::get('sync-center', fn() => Inertia::render('sync-center', [

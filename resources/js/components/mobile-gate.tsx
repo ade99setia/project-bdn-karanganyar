@@ -3,7 +3,8 @@ import { Camera } from '@capacitor/camera';
 import { registerPlugin } from '@capacitor/core';
 import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 interface MockLocationPlugin {
     isMockLocationEnabled: () => Promise<{ isMockLocationEnabled: boolean }>;
@@ -17,65 +18,104 @@ const MockLocationChecker = registerPlugin<MockLocationPlugin>('MockLocationChec
 const DevMode = registerPlugin<DevModePlugin>('DevMode');
 
 export default function MobileGate({ children }: { children: React.ReactNode }) {
-    const [status, setStatus] = useState<'loading' | 'web_block' | 'permission_denied' | 'fake_gps_detected' | 'developer_mode_detected' | 'granted'>('loading');
+    const [status, setStatus] = useState<'loading' | 'web_block' | 'permission_denied' | 'notification_required' | 'fake_gps_detected' | 'developer_mode_detected' | 'granted'>('loading');
+    const [isEnablingPush, setIsEnablingPush] = useState(false);
+    const [pushEnableMessage, setPushEnableMessage] = useState<string | null>(null);
 
-    useEffect(() => {
-        const checkAccess = async () => {
-            if (Capacitor.getPlatform() === 'web') {
-                setStatus('web_block');
+    const { enablePush, checkPushStatus } = usePushNotifications({
+        setupListeners: false,
+    });
+
+    const checkAccess = useCallback(async () => {
+        if (Capacitor.getPlatform() === 'web') {
+            setStatus('web_block');
+            return;
+        }
+
+        try {
+            // ── CEK FAKE GPS / MOCK LOCATION ──
+            try {
+                if (MockLocationChecker) {
+                    const mockLocationResult = await MockLocationChecker.isMockLocationEnabled();
+                    if (mockLocationResult?.isMockLocationEnabled === true) {
+                        console.warn('Fake GPS terdeteksi');
+                        setStatus('fake_gps_detected');
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.warn('MockLocationChecker tidak tersedia:', err);
+                // Lanjut ke check berikutnya jika plugin tidak tersedia
+            }
+
+            // ── CEK DEVELOPER MODE ──
+            try {
+                const devModeResult = await DevMode.isEnabled();
+                if (devModeResult?.enabled === true) {
+                    console.warn('Developer mode terdeteksi');
+                    setStatus('developer_mode_detected');
+                    return;
+                }
+            } catch (err) {
+                console.warn('DevMode check tidak tersedia:', err);
+                // Lanjut ke permission check
+            }
+
+            // ── CEK PERMISSIONS ──
+            const cam = await Camera.requestPermissions();
+            const loc = await Geolocation.requestPermissions();
+
+            const isCameraGranted = cam.camera === 'granted' || cam.photos === 'granted';
+            const isLocationGranted = loc.location === 'granted' || loc.coarseLocation === 'granted';
+
+            if (!isCameraGranted || !isLocationGranted) {
+                console.warn('Izin kurang:', { cam, loc });
+                setStatus('permission_denied');
                 return;
             }
 
-            try {
-                // ── CEK FAKE GPS / MOCK LOCATION ──
-                try {
-                    if (MockLocationChecker) {
-                        const mockLocationResult = await MockLocationChecker.isMockLocationEnabled();
-                        if (mockLocationResult?.isMockLocationEnabled === true) {
-                            console.warn('Fake GPS terdeteksi');
-                            setStatus('fake_gps_detected');
-                            return;
-                        }
-                    }
-                } catch (err) {
-                    console.warn('MockLocationChecker tidak tersedia:', err);
-                    // Lanjut ke check berikutnya jika plugin tidak tersedia
-                }
-
-                // ── CEK DEVELOPER MODE ──
-                try {
-                    const devModeResult = await DevMode.isEnabled();
-                    if (devModeResult?.enabled === true) {
-                        console.warn('Developer mode terdeteksi');
-                        setStatus('developer_mode_detected');
-                        return;
-                    }
-                } catch (err) {
-                    console.warn('DevMode check tidak tersedia:', err);
-                    // Lanjut ke permission check
-                }
-
-                // ── CEK PERMISSIONS ──
-                const cam = await Camera.requestPermissions();
-                const loc = await Geolocation.requestPermissions();
-
-                const isCameraGranted = cam.camera === 'granted' || cam.photos === 'granted';
-                const isLocationGranted = loc.location === 'granted' || loc.coarseLocation === 'granted';
-
-                if (isCameraGranted && isLocationGranted) {
-                    setStatus('granted');
-                } else {
-                    console.warn('Izin kurang:', { cam, loc });
-                    setStatus('permission_denied');
-                }
-            } catch (err) {
-                console.error('Permission check failed:', err);
-                setStatus('permission_denied');
+            const isPushEnabled = await checkPushStatus();
+            if (!isPushEnabled) {
+                setStatus('notification_required');
+                return;
             }
-        };
 
-        checkAccess();
-    }, []);
+            setStatus('granted');
+        } catch (err) {
+            console.error('Permission check failed:', err);
+            setStatus('permission_denied');
+        }
+    }, [checkPushStatus]);
+
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            void checkAccess();
+        }, 0);
+
+        return () => {
+            window.clearTimeout(timer);
+        };
+    }, [checkAccess]);
+
+    const handleEnablePushNotifications = async () => {
+        if (isEnablingPush) {
+            return;
+        }
+
+        setPushEnableMessage(null);
+        setIsEnablingPush(true);
+
+        const result = await enablePush();
+
+        if (!result.success) {
+            setPushEnableMessage(result.message || 'Gagal mengaktifkan notifikasi push.');
+            setIsEnablingPush(false);
+            return;
+        }
+
+        await checkAccess();
+        setIsEnablingPush(false);
+    };
 
     // ── LOADING ──
     if (status === 'loading') {
@@ -201,6 +241,64 @@ export default function MobileGate({ children }: { children: React.ReactNode }) 
                         >
                             Periksa Ulang
                         </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ── PUSH NOTIFICATION REQUIRED ──
+    if (status === 'notification_required') {
+        return (
+            <div className="fixed inset-0 bg-linear-to-br from-gray-950 via-indigo-950 to-black flex items-center justify-center p-5 sm:p-6 safe-area-inset">
+                <div className="w-full max-w-lg bg-black/40 backdrop-blur-xl border border-cyan-500/20 rounded-3xl shadow-2xl overflow-hidden">
+                    <div className="p-8 sm:p-10 space-y-8 text-center">
+                        <div className="space-y-4">
+                            <h1 className="text-2xl sm:text-3xl font-semibold text-white tracking-tight">Aktifkan Notifikasi</h1>
+                            <p className="text-cyan-200/70 text-base leading-relaxed max-w-prose mx-auto">
+                                Sebelum masuk ke halaman utama, Anda wajib mengaktifkan izin notifikasi dan menerima push notification.
+                            </p>
+                            <p className="text-sm text-cyan-200/50">
+                                Ini diperlukan agar update tugas dan info penting tidak terlewat.
+                            </p>
+                        </div>
+
+                        {pushEnableMessage && (
+                            <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                                {pushEnableMessage}
+                            </div>
+                        )}
+
+                        <div className="flex flex-col gap-3">
+                            <button
+                                onClick={handleEnablePushNotifications}
+                                disabled={isEnablingPush}
+                                className="w-full px-10 py-4 bg-linear-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-gray-950 font-semibold rounded-2xl shadow-xl shadow-cyan-500/30 transition-all duration-300 hover:shadow-cyan-500/40 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-gray-950 active:scale-[0.98] disabled:opacity-70"
+                            >
+                                {isEnablingPush ? 'Mengaktifkan Notifikasi...' : 'Aktifkan Notifikasi Sekarang'}
+                            </button>
+
+                            <button
+                                onClick={() => {
+                                    const platform = Capacitor.getPlatform();
+                                    if (platform === 'ios') {
+                                        AppLauncher.openUrl({ url: 'app-settings:' });
+                                    } else if (platform === 'android') {
+                                        AppLauncher.openUrl({ url: 'android.settings.APP_NOTIFICATION_SETTINGS' });
+                                    }
+                                }}
+                                className="w-full px-10 py-4 bg-white/10 hover:bg-white/15 text-cyan-100 font-semibold rounded-2xl border border-cyan-400/30 transition-all duration-300"
+                            >
+                                Buka Pengaturan Notifikasi
+                            </button>
+
+                            <button
+                                onClick={() => void checkAccess()}
+                                className="w-full px-10 py-4 bg-transparent hover:bg-white/5 text-cyan-200/90 font-medium rounded-2xl border border-cyan-400/20 transition-all duration-300"
+                            >
+                                Cek Status Lagi
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

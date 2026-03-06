@@ -87,6 +87,8 @@ export default function StockistSettingsPage() {
         removeStockAdjustLine,
     } = useStockAdjustment({
         salesUsers,
+        products,
+        warehouses,
         showAlert,
     });
 
