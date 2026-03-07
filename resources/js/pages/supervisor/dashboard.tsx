@@ -498,7 +498,16 @@ export default function Dashboard({
                     productActionBreakdown={productActionBreakdown}
                 />
 
-                <ProgressTable title="PROGRESS TIM SALES" rows={progressPerSales} />
+                <ProgressTable
+                    title="PROGRESS TIM SALES"
+                    rows={progressPerSales}
+                    monitoringFilter={{
+                        filterType,
+                        date: singleDate,
+                        startDate,
+                        endDate,
+                    }}
+                />
 
                 <VisitHistorySection
                     totalItems={totalItems}

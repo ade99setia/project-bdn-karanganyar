@@ -151,12 +151,15 @@ class SupervisorController extends Controller
                     SUM(CASE WHEN visited_at BETWEEN ? AND ? AND is_fake_gps = 1 THEN 1 ELSE 0 END) as fake_gps_today,
                     SUM(CASE WHEN visited_at BETWEEN ? AND ? THEN 1 ELSE 0 END) as visits_month,
                     COUNT(DISTINCT CASE WHEN visited_at BETWEEN ? AND ? THEN customer_id END) as customers_touched,
+                    MAX(CASE WHEN visited_at BETWEEN ? AND ? THEN id END) as last_visit_id,
                     MAX(CASE WHEN visited_at BETWEEN ? AND ? THEN visited_at END) as last_visit_at
                 ', [
                     $todayStart,
                     $periodEnd,
                     $todayStart,
                     $periodEnd,
+                    $monthStart,
+                    $monthEnd,
                     $monthStart,
                     $monthEnd,
                     $monthStart,
@@ -393,6 +396,7 @@ class SupervisorController extends Controller
                     'achievement_delivery_percent' => $deliveryAchievementPercent,
                     'achievement_percent' => min(100, $achievementPercent),
                     'achievement_raw_percent' => $achievementPercent,
+                    'last_visit_id' => isset($salesStats->last_visit_id) ? (int) $salesStats->last_visit_id : null,
                     'last_visit_at' => isset($salesStats->last_visit_at) ? (string) $salesStats->last_visit_at : null,
                 ];
             })->all();

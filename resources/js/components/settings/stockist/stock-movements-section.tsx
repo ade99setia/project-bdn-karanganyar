@@ -65,7 +65,7 @@ export default function StockMovementsSection({ filteredMovements, onPreviewImag
                                             })()}
                                         </div>
                                     ) : (
-                                        <span className="text-sm text-zinc-600">-</span>
+                                        <span className="text-sm text-zinc-600">Sistem</span>
                                     )}
                                 </td>
                                 <td className="px-4 py-3">

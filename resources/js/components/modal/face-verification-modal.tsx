@@ -404,7 +404,7 @@ export default function FaceVerificationModal({
     // RENDER UI
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="w-screen h-dvh max-w-none rounded-none border-0 p-0 m-0 bg-linear-to-br from-gray-950 via-indigo-950 to-black flex flex-col overflow-hidden">
+            <DialogContent showCloseButton={false} className="w-screen h-dvh max-w-none rounded-none border-0 p-0 m-0 bg-linear-to-br from-gray-950 via-indigo-950 to-black flex flex-col overflow-hidden">
                 <div className="relative w-full h-full">
                     {/* Video Element */}
                     <video
@@ -415,7 +415,7 @@ export default function FaceVerificationModal({
                     />
 
                     {/* Overlay UI */}
-                    <div className="absolute top-5 inset-0 flex flex-col justify-between p-5 md:p-8 z-10 pointer-events-none">
+                    <div className="absolute top-0 inset-0 flex flex-col justify-between p-5 md:p-8 z-10 pointer-events-none">
 
                         {/* Header */}
                         <div className="flex items-center justify-between pointer-events-auto">

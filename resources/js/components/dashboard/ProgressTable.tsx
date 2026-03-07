@@ -1,7 +1,8 @@
-import { router } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import { TrendingUp, FileBarChart2 } from 'lucide-react';
 import ImagePreviewModal from '@/components/modal/image-preview-modal';
 import { useImagePreviewModal } from '@/hooks/use-image-preview-modal';
+import type { SharedData } from '@/types';
 
 export interface ProgressRow {
     no: number;
@@ -21,12 +22,21 @@ export interface ProgressRow {
     achievement_delivery_percent: number;
     achievement_percent: number;
     achievement_raw_percent: number;
+    last_visit_id: number | null;
     last_visit_at: string | null;
 }
+
+type MonitoringFilter = {
+    filterType: 'single' | 'range';
+    date: string;
+    startDate: string;
+    endDate: string;
+};
 
 type ProgressTableProps = {
     title: string;
     rows: ProgressRow[];
+    monitoringFilter: MonitoringFilter;
 };
 
 const getAchievementColor = (value: number) => {
@@ -41,8 +51,30 @@ const getAttendanceBadgeClass = (status: 'Belum' | 'Bekerja' | 'Selesai') => {
     return 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300';
 };
 
-export default function ProgressTable({ title, rows }: ProgressTableProps) {
+export default function ProgressTable({ title, rows, monitoringFilter }: ProgressTableProps) {
     const { isPreviewOpen, previewUrl, openPreview, closePreview } = useImagePreviewModal();
+    const { props } = usePage<SharedData>();
+    const supervisorId = props.auth?.user?.id;
+
+    const buildMonitoringRecordUrl = (salesId: number) => {
+        const basePath = supervisorId
+            ? `/supervisor/monitoring-record/${supervisorId}`
+            : '/supervisor/monitoring-team';
+
+        const queryParams = new URLSearchParams();
+
+        if (monitoringFilter.filterType === 'range') {
+            queryParams.set('filterType', 'range');
+            queryParams.set('startDate', monitoringFilter.startDate);
+            queryParams.set('endDate', monitoringFilter.endDate);
+        } else {
+            queryParams.set('date', monitoringFilter.date);
+        }
+
+        queryParams.append('salesIds', String(salesId));
+
+        return `${basePath}?${queryParams.toString()}`;
+    };
 
     return (
         <>
@@ -84,7 +116,9 @@ export default function ProgressTable({ title, rows }: ProgressTableProps) {
 
                                     return (
                                     <tr key={row.id} className="transition hover:bg-gray-50 dark:hover:bg-gray-700/20">
-                                        <td className="border px-3 py-2 text-center font-semibold">{row.no}</td>
+                                        <td className="border px-3 py-2 text-center">
+                                            <div className="font-semibold">{row.no}</div>
+                                        </td>
                                         <td className="border px-3 py-2">
                                             <div className="flex items-center gap-2">
                                                 {row.avatar ? (
@@ -141,7 +175,7 @@ export default function ProgressTable({ title, rows }: ProgressTableProps) {
                                         </td>
                                         <td className="border px-3 py-2 text-center">
                                             <button
-                                                onClick={() => router.visit('/supervisor/monitoring-team')}
+                                                onClick={() => router.visit(buildMonitoringRecordUrl(row.id))}
                                                 className="inline-flex h-8 w-8 items-center justify-center rounded bg-green-50 text-green-600 transition hover:bg-green-100 dark:bg-green-900/30 dark:text-green-300 dark:hover:bg-green-800/50"
                                                 title={`Buka monitoring tim untuk ${row.name}`}
                                             >

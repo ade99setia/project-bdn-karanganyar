@@ -67,6 +67,7 @@
         "@vitejs/plugin-react": "^5.0.0",
         "axios": "^1.13.5",
         "browser-image-compression": "^2.0.2",
+        "@zxing/browser": "^0.1.5",
         "capacitor-mock-location-checker": "^0.3.0",
         "capacitor-plugin-safe-area": "^5.0.0",
         "class-variance-authority": "^0.7.1",

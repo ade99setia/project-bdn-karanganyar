@@ -1,3 +1,4 @@
+import { BarcodeFormat } from '@zxing/library';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
     ArrowRight,
@@ -11,13 +12,17 @@ import {
     Phone,
     Plus,
     Search,
+    ScanLine,
     StickyNote,
     Store,
     Trash2,
     User,
     X,
 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
+import BarcodeScannerModal from '@/components/modal/barcode-scanner-modal';
+import VisitCameraModal from '@/components/modal/visit-camera-modal';
 
 interface Customer {
     id: number;
@@ -154,13 +159,94 @@ export default function VisitInputModal({
     remainingStockForSelectedProduct,
     showAlert,
 }: VisitInputModalProps & { showAlert: (title: string, message: string, type: "success" | "error" | "warning" | "info", onConfirm?: () => void, isFatal?: boolean) => void }) {
+    const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
+    const scannerOpenTimeoutRef = useRef<number | null>(null);
+
+    const productByStrictSku = useMemo(() => {
+        const map = new Map<string, Product>();
+        products.forEach((item) => {
+            map.set(item.sku.trim().toUpperCase(), item);
+        });
+        return map;
+    }, [products]);
+
+    const productByLooseSku = useMemo(() => {
+        const map = new Map<string, Product>();
+        products.forEach((item) => {
+            const key = item.sku.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+            if (!map.has(key)) {
+                map.set(key, item);
+            }
+        });
+        return map;
+    }, [products]);
+
+    const scannerFormats = useMemo(() => [
+        BarcodeFormat.CODE_128,
+        BarcodeFormat.EAN_13,
+        BarcodeFormat.EAN_8,
+        BarcodeFormat.UPC_A,
+        BarcodeFormat.UPC_E,
+        BarcodeFormat.CODE_39,
+        BarcodeFormat.ITF,
+    ], []);
+
+    const openBarcodeScanner = () => {
+        // Release visit camera stream first so scanner can acquire camera reliably.
+        onCloseCamera();
+        setShowResults(false);
+
+        if (scannerOpenTimeoutRef.current != null) {
+            window.clearTimeout(scannerOpenTimeoutRef.current);
+        }
+
+        // Some Android devices need a short delay to fully release camera hardware.
+        scannerOpenTimeoutRef.current = window.setTimeout(() => {
+            setIsBarcodeScannerOpen(true);
+            scannerOpenTimeoutRef.current = null;
+        }, 220);
+    };
+
+    const openVisitCamera = () => {
+        // Avoid camera contention between scanner and photo capture modal.
+        setIsBarcodeScannerOpen(false);
+        onStartCamera();
+    };
+
+    const closeBarcodeScanner = useCallback(() => {
+        setIsBarcodeScannerOpen(false);
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            if (scannerOpenTimeoutRef.current != null) {
+                window.clearTimeout(scannerOpenTimeoutRef.current);
+            }
+        };
+    }, []);
+
+    const handleBarcodeDetected = useCallback((scannedCode: string) => {
+        const normalizedCode = scannedCode.trim().toUpperCase();
+        const looseCode = normalizedCode.replace(/[^A-Z0-9]/g, '');
+        const product = productByStrictSku.get(normalizedCode) ?? productByLooseSku.get(looseCode);
+
+        if (!product) {
+            return false;
+        }
+
+        setTempProdId(String(product.id));
+        setSearchQuery(product.name);
+        setShowResults(false);
+        return true;
+    }, [productByLooseSku, productByStrictSku, setSearchQuery, setShowResults, setTempProdId]);
+
     if (!isOpen) return null;
 
-    const isDatabaseSelected = customerMode === 'database' && !!selectedCustomerId;
-    const isManualComplete = customerMode === 'manual' && manualCustomerName.trim() && manualCustomerNote.trim();
+    const isDatabaseSelected = customerMode == 'database' && !!selectedCustomerId;
+    const isManualComplete = customerMode == 'manual' && manualCustomerName.trim() && manualCustomerNote.trim();
     const canProceedToActivity = isDatabaseSelected || isManualComplete;
-    const isKunjungan = visitType === 'kunjungan';
-    const isPengiriman = visitType === 'pengiriman';
+    const isKunjungan = visitType == 'kunjungan';
+    const isPengiriman = visitType == 'pengiriman';
     const hasValidVisitType = isKunjungan || isPengiriman;
     const hasDescription = description.trim().length > 0;
     const hasPhoto = !!photo;
@@ -170,107 +256,31 @@ export default function VisitInputModal({
         && hasPhoto
         && (isKunjungan || (isPengiriman && cart.length > 0));
 
-    const isTerjualAction = tempAction === 'terjual';
+    const isTerjualAction = tempAction == 'terjual';
     const maxQtyForCurrentSelection = isTerjualAction ? remainingStockForSelectedProduct : null;
     const selectableProducts = products.filter((product) => Number(product.stock_quantity ?? 0) > 0);
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-            <AnimatePresence>
-                {isCameraOpen && (
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.98 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 1.02 }}
-                        transition={{ duration: 0.3, ease: "easeInOut" }}
-                        className="fixed inset-0 z-999 bg-black flex flex-col overflow-hidden"
-                    >
-                        {/* Video Feed */}
-                        <video
-                            ref={videoRef}
-                            autoPlay
-                            playsInline
-                            muted
-                            className="absolute inset-0 w-full h-full object-cover"
-                        />
+            <VisitCameraModal
+                isOpen={isCameraOpen}
+                isCompressing={isCompressing}
+                videoRef={videoRef}
+                onClose={onCloseCamera}
+                onCapture={onCaptureFromCamera}
+            />
 
-                        {/* Top Header - Glassmorphism */}
-                        <div className="absolute top-0 inset-x-0 px-6 py-5 flex justify-between items-center bg-linear-to-b from-black/70 to-transparent z-20">
-                            <span className="text-white/90 font-medium tracking-wide text-sm drop-shadow-md">
-                                Ambil Foto
-                            </span>
-                            <button
-                                type="button"
-                                onClick={onCloseCamera}
-                                disabled={isCompressing}
-                                className="p-2.5 rounded-full bg-black/20 text-white backdrop-blur-md border border-white/10 transition-all hover:bg-black/40 disabled:opacity-50"
-                                aria-label="Tutup kamera"
-                            >
-                                {/* Ikon X sederhana */}
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
-                            </button>
-                        </div>
-
-                        {/* Viewfinder / Focus Frame (Opsional untuk estetika premium) */}
-                        <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center p-8">
-                            <div className="w-full h-full max-h-[60vh] max-w-[85vw] sm:max-w-md relative opacity-60">
-                                {/* Corner Brackets */}
-                                <div className="absolute top-0 left-0 w-10 h-10 border-t-2 border-l-2 border-white rounded-tl-3xl"></div>
-                                <div className="absolute top-0 right-0 w-10 h-10 border-t-2 border-r-2 border-white rounded-tr-3xl"></div>
-                                <div className="absolute bottom-0 left-0 w-10 h-10 border-b-2 border-l-2 border-white rounded-bl-3xl"></div>
-                                <div className="absolute bottom-0 right-0 w-10 h-10 border-b-2 border-r-2 border-white rounded-br-3xl"></div>
-
-                                {/* Center Crosshair (Titik fokus di tengah) */}
-                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                                    <div className="w-1 h-1 bg-white/50 rounded-full"></div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Bottom Controls */}
-                        <div className="absolute bottom-0 inset-x-0 pb-12 pt-32 bg-linear-to-t from-black/90 via-black/50 to-transparent z-20">
-                            <div className="flex items-center justify-between w-full max-w-md mx-auto px-10">
-
-                                {/* Tombol Batal */}
-                                <button
-                                    type="button"
-                                    onClick={onCloseCamera}
-                                    disabled={isCompressing}
-                                    className="text-white/70 font-medium text-sm hover:text-white transition-colors disabled:opacity-50 w-16 text-left"
-                                >
-                                    Batal
-                                </button>
-
-                                {/* Shutter Button (Tombol Jepret Utama) */}
-                                <motion.button
-                                    whileTap={{ scale: 0.9 }}
-                                    type="button"
-                                    onClick={onCaptureFromCamera}
-                                    disabled={isCompressing}
-                                    className="relative flex items-center justify-center w-21 h-21 rounded-full border-[3px] border-white/80 disabled:opacity-50 transition-all hover:border-white focus:outline-none"
-                                    aria-label="Ambil Gambar"
-                                >
-                                    {isCompressing ? (
-                                        <div className="w-17 h-17 rounded-full bg-white/50 flex items-center justify-center animate-pulse">
-                                            {/* Loading Spinner Kecil */}
-                                            <svg className="animate-spin h-6 w-6 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                            </svg>
-                                        </div>
-                                    ) : (
-                                        <div className="w-17 h-17 rounded-full bg-white transition-all hover:bg-slate-200"></div>
-                                    )}
-                                </motion.button>
-
-                                {/* Spacer kosong untuk menyeimbangkan flexbox agar tombol shutter tepat di tengah */}
-                                <div className="w-16"></div>
-
-                            </div>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+            <BarcodeScannerModal
+                isOpen={isBarcodeScannerOpen}
+                onClose={closeBarcodeScanner}
+                onDetected={handleBarcodeDetected}
+                title="Scan Barcode"
+                subtitle="Arahkan barcode SKU ke area kamera"
+                notFoundMessage="Produk tidak ditemukan"
+                requiredDetections={1}
+                barcodeFormats={scannerFormats}
+                warmupMs={500}
+            />
 
             <motion.div
                 initial={{ opacity: 0 }}
@@ -386,7 +396,7 @@ export default function VisitInputModal({
                         <div className="bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl flex">
                             <button
                                 onClick={() => setCustomerMode('database')}
-                                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${customerMode === 'database'
+                                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${customerMode == 'database'
                                     ? 'bg-white dark:bg-zinc-800 text-blue-600 shadow-sm'
                                     : 'text-zinc-400 hover:text-zinc-600'}`}
                             >
@@ -394,7 +404,7 @@ export default function VisitInputModal({
                             </button>
                             <button
                                 onClick={() => setCustomerMode('manual')}
-                                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${customerMode === 'manual'
+                                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${customerMode == 'manual'
                                     ? 'bg-white dark:bg-zinc-800 text-orange-600 shadow-sm'
                                     : 'text-zinc-400 hover:text-zinc-600'}`}
                             >
@@ -402,7 +412,7 @@ export default function VisitInputModal({
                             </button>
                         </div>
 
-                        {customerMode === 'database' && (
+                        {customerMode == 'database' && (
                             <div className="space-y-2.5">
                                 {isLoadingCustomers ? (
                                     <div className="py-8 text-center text-zinc-400 text-xs">
@@ -416,13 +426,13 @@ export default function VisitInputModal({
                                                 key={cust.id}
                                                 onClick={() => onSelectCustomer(cust)}
                                                 className={`text-left p-3.5 rounded-xl border transition-all flex items-start gap-3.5 group
-                                                                    ${selectedCustomerId === cust.id
+                                                                    ${selectedCustomerId == cust.id
                                                         ? 'bg-blue-50/70 dark:bg-blue-950/30 border-blue-500/60 ring-1 ring-blue-500/40 shadow-sm'
                                                         : 'bg-white dark:bg-zinc-900/80 border-zinc-200 dark:border-zinc-800 hover:border-blue-300/50 hover:shadow-sm'}`}
                                             >
                                                 <div className="flex flex-col items-center shrink-0">
                                                     <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors
-                                                                        ${selectedCustomerId === cust.id
+                                                                        ${selectedCustomerId == cust.id
                                                             ? 'bg-blue-600 text-white shadow-md'
                                                             : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 group-hover:bg-zinc-200 dark:group-hover:bg-zinc-700'}`}>
                                                         <Store size={20} strokeWidth={2} />
@@ -434,7 +444,7 @@ export default function VisitInputModal({
 
                                                 <div className="flex-1 min-w-0">
                                                     <p className={`text-sm font-semibold tracking-tight leading-tight
-                                                                    ${selectedCustomerId === cust.id ? 'text-blue-700 dark:text-blue-300' : 'text-zinc-800 dark:text-zinc-200'}`}>
+                                                                    ${selectedCustomerId == cust.id ? 'text-blue-700 dark:text-blue-300' : 'text-zinc-800 dark:text-zinc-200'}`}>
                                                         {cust.name}
                                                     </p>
                                                     <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 line-clamp-1">
@@ -457,7 +467,7 @@ export default function VisitInputModal({
                                                     </div>
                                                 </div>
 
-                                                {selectedCustomerId === cust.id && (
+                                                {selectedCustomerId == cust.id && (
                                                     <div className="self-center pl-2">
                                                         <CheckCircle2 size={18} className="text-blue-600" strokeWidth={2.5} />
                                                     </div>
@@ -482,7 +492,7 @@ export default function VisitInputModal({
                             </div>
                         )}
 
-                        {customerMode === 'manual' && (
+                        {customerMode == 'manual' && (
                             <div className="space-y-3 p-4 bg-orange-50 dark:bg-orange-900/10 rounded-2xl border border-orange-100 dark:border-orange-900/30">
                                 <div className="relative">
                                     <User className="absolute left-3 top-3.5 text-zinc-400" size={18} />
@@ -577,7 +587,7 @@ export default function VisitInputModal({
                                         <button
                                             key={item.id}
                                             onClick={() => setVisitType(item.id)}
-                                            className={`py-3 px-4 rounded-2xl text-sm font-medium transition-all duration-200 border ${visitType === item.id
+                                            className={`py-3 px-4 rounded-2xl text-sm font-medium transition-all duration-200 border ${visitType == item.id
                                                 ? 'bg-linear-to-br from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-700/20 border-transparent'
                                                 : 'bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400'
                                                 }`}
@@ -623,7 +633,7 @@ export default function VisitInputModal({
                                         <div className="space-y-2">
                                             <button
                                                 type="button"
-                                                onClick={onStartCamera}
+                                                onClick={openVisitCamera}
                                                 disabled={isStartingCamera || isCompressing}
                                                 className={`relative w-full border-2 border-dashed rounded-2xl h-52 flex items-center justify-center transition-all overflow-hidden ${photo || isCameraOpen ? 'border-blue-400 bg-blue-50/20' : 'border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-900/50'} disabled:opacity-70`}
                                             >
@@ -670,25 +680,35 @@ export default function VisitInputModal({
                                         <div className="space-y-2 relative">
                                             <label className="text-xs font-bold text-zinc-400 px-1 uppercase tracking-tight">Cari Produk</label>
                                             <div className="space-y-2">
-                                                <div className="relative">
-                                                    <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" />
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Ketik nama atau SKU produk..."
-                                                        value={searchQuery}
-                                                        onChange={(e) => {
-                                                            setSearchQuery(e.target.value);
-                                                            setShowResults(true);
-                                                        }}
-                                                        onFocus={() => setShowResults(true)}
-                                                        className="w-full h-12 pl-12 pr-4 bg-zinc-100 dark:bg-zinc-900 border-none rounded-2xl text-sm font-semibold focus:ring-2 focus:ring-orange-500 transition-all"
-                                                    />
+                                                <div className="flex gap-2">
+                                                    <div className="relative flex-1">
+                                                        <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" />
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Ketik nama atau SKU produk..."
+                                                            value={searchQuery}
+                                                            onChange={(e) => {
+                                                                setSearchQuery(e.target.value);
+                                                                setShowResults(true);
+                                                            }}
+                                                            onFocus={() => setShowResults(true)}
+                                                            className="w-full h-12 pl-12 pr-4 bg-zinc-100 dark:bg-zinc-900 border-none rounded-2xl text-sm font-semibold focus:ring-2 focus:ring-orange-500 transition-all"
+                                                        />
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={openBarcodeScanner}
+                                                        className="h-12 px-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shrink-0"
+                                                    >
+                                                        <ScanLine size={16} />
+                                                        Scan Barcode
+                                                    </button>
                                                 </div>
 
                                                 {tempProdId && !showResults && (
                                                     <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-2xl border-2 border-orange-300 dark:border-orange-700">
                                                         {(() => {
-                                                            const selected = products.find(p => p.id === Number(tempProdId));
+                                                            const selected = products.find(p => p.id == Number(tempProdId));
                                                             return (
                                                                 <>
                                                                     <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 shadow-md border-2 border-orange-200 dark:border-orange-800">
@@ -779,7 +799,7 @@ export default function VisitInputModal({
                                                         {searchQuery.trim().length > 0 && selectableProducts.filter(p =>
                                                             p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                                                             p.sku.toLowerCase().includes(searchQuery.toLowerCase())
-                                                        ).length === 0 && (
+                                                        ).length == 0 && (
                                                                 <div className="p-4 text-center text-zinc-500 text-xs italic">Produk tidak ditemukan...</div>
                                                             )}
                                                     </motion.div>
@@ -803,7 +823,7 @@ export default function VisitInputModal({
                                                     key={action.id}
                                                     type="button"
                                                     onClick={() => setTempAction(action.id)}
-                                                    className={`py-3.5 rounded-2xl text-[13px] font-bold border-2 transition-all duration-200 ${tempAction === action.id
+                                                    className={`py-3.5 rounded-2xl text-[13px] font-bold border-2 transition-all duration-200 ${tempAction == action.id
                                                         ? 'bg-orange-500 border-orange-500 text-white shadow-lg shadow-orange-500/20'
                                                         : 'bg-white dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800 text-zinc-500'
                                                         }`}
@@ -828,7 +848,7 @@ export default function VisitInputModal({
                                                         onClick={() => {
                                                             setTempQty(prev => {
                                                                 const next = (Number(prev) || 0) + num;
-                                                                if (maxQtyForCurrentSelection === null) {
+                                                                if (maxQtyForCurrentSelection == null) {
                                                                     return next;
                                                                 }
                                                                 if (next > maxQtyForCurrentSelection) {
@@ -870,7 +890,7 @@ export default function VisitInputModal({
                                                                 return;
                                                             }
 
-                                                            if (maxQtyForCurrentSelection === null) {
+                                                            if (maxQtyForCurrentSelection == null) {
                                                                 setTempQty(parsed);
                                                                 return;
                                                             }
@@ -888,7 +908,7 @@ export default function VisitInputModal({
                                                         setSearchQuery('');
                                                         setTempQty(0);
                                                     }}
-                                                    disabled={!tempProdId || tempQty <= 0 || (maxQtyForCurrentSelection !== null && tempQty > maxQtyForCurrentSelection)}
+                                                    disabled={!tempProdId || tempQty <= 0 || (maxQtyForCurrentSelection != null && tempQty > maxQtyForCurrentSelection)}
                                                     className="px-8 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-2xl font-black text-sm active:scale-95 transition-all shadow-lg shadow-blue-600/20"
                                                 >
                                                     TAMBAH
@@ -902,7 +922,7 @@ export default function VisitInputModal({
                                                         <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-tight">Harga Jual</p>
                                                         <p className="text-sm font-black text-blue-900 dark:text-blue-100">
                                                             {(() => {
-                                                                const selected = products.find(p => p.id === Number(tempProdId));
+                                                                const selected = products.find(p => p.id == Number(tempProdId));
                                                                 return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(selected?.price || 0);
                                                             })()}
                                                         </p>
@@ -911,7 +931,7 @@ export default function VisitInputModal({
                                                         <p className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-tight">Total Value</p>
                                                         <p className="text-sm font-black text-blue-900 dark:text-blue-100">
                                                             {(() => {
-                                                                const selected = products.find(p => p.id === Number(tempProdId));
+                                                                const selected = products.find(p => p.id == Number(tempProdId));
                                                                 const total = (selected?.price || 0) * tempQty;
                                                                 return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(total);
                                                             })()}
@@ -924,10 +944,10 @@ export default function VisitInputModal({
                                         {cart.length > 0 && (
                                             <div className="space-y-3 mt-4">
                                                 {cart.map((item, idx) => {
-                                                    const cartProduct = products.find(p => p.id === item.product_id);
+                                                    const cartProduct = products.find(p => p.id == item.product_id);
                                                     const unitPrice = item.unit_price ?? cartProduct?.price ?? 0;
                                                     const itemTotal = unitPrice * item.quantity;
-                                                    const isRetur = item.action_type === 'retur';
+                                                    const isRetur = item.action_type == 'retur';
                                                     const displayValue = isRetur ? -itemTotal : itemTotal;
 
                                                     return (
@@ -965,10 +985,10 @@ export default function VisitInputModal({
                                                 {cart.length > 0 && (
                                                     <div className={`p-4 rounded-2xl border-2 mt-4 ${(() => {
                                                         const total = cart.reduce((sum, item) => {
-                                                            const cartProduct = products.find(p => p.id === item.product_id);
+                                                            const cartProduct = products.find(p => p.id == item.product_id);
                                                             const unitPrice = item.unit_price ?? cartProduct?.price ?? 0;
                                                             const itemTotal = unitPrice * item.quantity;
-                                                            const isNegative = item.action_type === 'retur';
+                                                            const isNegative = item.action_type == 'retur';
                                                             return sum + (isNegative ? -itemTotal : itemTotal);
                                                         }, 0);
                                                         return total >= 0
@@ -978,20 +998,20 @@ export default function VisitInputModal({
                                                         <p className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-tight mb-2">Grand Total</p>
                                                         <p className={`text-lg font-black ${(() => {
                                                             const total = cart.reduce((sum, item) => {
-                                                                const cartProduct = products.find(p => p.id === item.product_id);
+                                                                const cartProduct = products.find(p => p.id == item.product_id);
                                                                 const unitPrice = item.unit_price ?? cartProduct?.price ?? 0;
                                                                 const itemTotal = unitPrice * item.quantity;
-                                                                const isNegative = item.action_type === 'retur';
+                                                                const isNegative = item.action_type == 'retur';
                                                                 return sum + (isNegative ? -itemTotal : itemTotal);
                                                             }, 0);
                                                             return total >= 0 ? 'text-green-700 dark:text-green-100' : 'text-red-700 dark:text-red-100';
                                                         })()}`}>
                                                             {(() => {
                                                                 const total = cart.reduce((sum, item) => {
-                                                                    const cartProduct = products.find(p => p.id === item.product_id);
+                                                                    const cartProduct = products.find(p => p.id == item.product_id);
                                                                     const unitPrice = item.unit_price ?? cartProduct?.price ?? 0;
                                                                     const itemTotal = unitPrice * item.quantity;
-                                                                    const isNegative = item.action_type === 'retur';
+                                                                    const isNegative = item.action_type == 'retur';
                                                                     return sum + (isNegative ? -itemTotal : itemTotal);
                                                                 }, 0);
                                                                 return (total >= 0 ? '+' : '') + new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(total);

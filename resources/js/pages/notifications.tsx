@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { Head, Link } from '@inertiajs/react';
-import { Bell, CheckCheck, Clock3, BellRing } from 'lucide-react';
+import { Bell, CheckCheck, Clock3, BellRing, Inbox } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import AlertModal from '@/components/modal/alert-modal';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
@@ -48,7 +48,6 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 const formatDateTime = (value: string | null) => {
     if (!value) return '-';
-
     return new Intl.DateTimeFormat('id-ID', {
         day: '2-digit',
         month: 'short',
@@ -60,14 +59,14 @@ const formatDateTime = (value: string | null) => {
 
 const isReadEndpointUrl = (url: string | null) => {
     if (!url) return false;
-
     return /^\/notifications\/\d+\/read$/.test(url);
 };
 
+// Priority badge menggunakan nuansa yang lebih aman untuk mobile
 const priorityClassMap: Record<NotificationItem['priority'], string> = {
-    low: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
-    normal: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
-    high: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+    low: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+    normal: 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400',
+    high: 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400',
 };
 
 type AlertConfigType = {
@@ -84,46 +83,25 @@ export default function SalesNotifications({ notifications, unreadCount }: Props
     const Layout = Capacitor.isNativePlatform() ? AppLayoutMobile : AppLayout;
 
     const [alertConfig, setAlertConfig] = useState<AlertConfigType>({
-        isOpen: false,
-        title: '',
-        message: '',
-        type: 'info',
+        isOpen: false, title: '', message: '', type: 'info',
     });
 
     const showAlert = (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info') => {
-        setAlertConfig({
-            isOpen: true,
-            title,
-            message,
-            type,
-        });
+        setAlertConfig({ isOpen: true, title, message, type });
     };
 
-    // Toggle push dari halaman ini, listener global dipasang di AppLayoutMobile
-    const { enablePush, disablePush, checkPushStatus } = usePushNotifications({
-        setupListeners: false,
-    });
+    const { enablePush, disablePush, checkPushStatus } = usePushNotifications({ setupListeners: false });
 
     const [isPushEnabled, setIsPushEnabled] = useState(false);
     const [isCheckingPushStatus, setIsCheckingPushStatus] = useState(Capacitor.isNativePlatform());
     const [isTogglingPush, setIsTogglingPush] = useState(false);
     const [readFilter, setReadFilter] = useState<ReadFilter>(() => {
-        if (typeof window === 'undefined') {
-            return 'unread';
-        }
-
-        const storedFilter = window.localStorage.getItem(READ_FILTER_STORAGE_KEY);
-        return storedFilter === 'read' ? 'read' : 'unread';
+        if (typeof window === 'undefined') return 'unread';
+        return window.localStorage.getItem(READ_FILTER_STORAGE_KEY) === 'read' ? 'read' : 'unread';
     });
 
-    const unreadNotifications = useMemo(() => {
-        return notifications.data.filter((notification) => notification.status === 'unread');
-    }, [notifications.data]);
-
-    const readNotifications = useMemo(() => {
-        return notifications.data.filter((notification) => notification.status !== 'unread');
-    }, [notifications.data]);
-
+    const unreadNotifications = useMemo(() => notifications.data.filter((n) => n.status === 'unread'), [notifications.data]);
+    const readNotifications = useMemo(() => notifications.data.filter((n) => n.status !== 'unread'), [notifications.data]);
     const filteredNotifications = readFilter === 'unread' ? unreadNotifications : readNotifications;
 
     useEffect(() => {
@@ -131,12 +109,8 @@ export default function SalesNotifications({ notifications, unreadCount }: Props
     }, [readFilter]);
 
     useEffect(() => {
-        if (!Capacitor.isNativePlatform()) {
-            return;
-        }
-
+        if (!Capacitor.isNativePlatform()) return;
         let isMounted = true;
-
         const loadPushStatus = async () => {
             const enabled = await checkPushStatus();
             if (isMounted) {
@@ -144,12 +118,8 @@ export default function SalesNotifications({ notifications, unreadCount }: Props
                 setIsCheckingPushStatus(false);
             }
         };
-
         loadPushStatus();
-
-        return () => {
-            isMounted = false;
-        };
+        return () => { isMounted = false; };
     }, [checkPushStatus]);
 
     const handleTogglePushNotifications = async () => {
@@ -158,70 +128,54 @@ export default function SalesNotifications({ notifications, unreadCount }: Props
             return;
         }
 
-        if (isTogglingPush) {
-            return;
-        }
-
+        if (isTogglingPush) return;
         setIsTogglingPush(true);
 
         if (isPushEnabled) {
-            showAlert('Proses', 'Sedang menonaktifkan push notification... Tunggu sebentar.', 'info');
-
             const result = await disablePush();
-
             if (result.success) {
                 setIsPushEnabled(false);
                 showAlert('Berhasil', result.message, 'success');
             } else {
                 showAlert('Gagal', result.message, 'error');
             }
-
             setIsTogglingPush(false);
             return;
         }
 
-        showAlert('Proses', 'Sedang mendaftar push notification... Tunggu sebentar.', 'info');
-
         const result = await enablePush();
-
         if (result.success) {
             setIsPushEnabled(true);
             showAlert('Berhasil', result.message, 'success');
         } else {
             showAlert('Gagal', result.message, 'error');
         }
-
         setIsTogglingPush(false);
     };
 
-    const handleMarkAsRead = (id: number) => {
-        PushNotificationService.markAsRead(id);
-    };
-
-    const handleMarkAsUnread = (id: number) => {
-        PushNotificationService.markAsUnread(id);
-    };
-
-    const handleMarkAllAsRead = () => {
-        PushNotificationService.markAllAsRead();
-    };
+    const handleMarkAsRead = (id: number) => PushNotificationService.markAsRead(id);
+    const handleMarkAsUnread = (id: number) => PushNotificationService.markAsUnread(id);
+    const handleMarkAllAsRead = () => PushNotificationService.markAllAsRead();
 
     return (
         <Layout breadcrumbs={breadcrumbs}>
             <Head title="Notifikasi" />
 
-            <div className="min-h-screen space-y-8 bg-blue-50/20 dark:bg-blue-950/10 pb-20 pt-8 px-4 sm:px-6 lg:px-8">
-                <div className="mx-auto max-w-8xl space-y-6">
-                    <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5 dark:bg-slate-900 dark:ring-white/10">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div className="flex items-center gap-3">
-                                <div className="rounded-xl bg-blue-100 p-2 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                                    <Bell size={20} />
+            {/* Background slate-50 yang nyaman untuk mata di mobile */}
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24 pt-6 px-4 sm:px-6 lg:px-8">
+                <div className="mx-auto max-w-3xl space-y-6">
+                    
+                    {/* Header Card dengan nuansa Biru */}
+                    <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-200/50 dark:bg-slate-900 dark:ring-slate-800">
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                            <div className="flex items-center gap-3.5">
+                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
+                                    <Bell size={24} />
                                 </div>
                                 <div>
-                                    <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">Riwayat Notifikasi</h1>
+                                    <h1 className="text-lg font-bold text-slate-900 dark:text-white">Notifikasi</h1>
                                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                                        Belum dibaca: <span className="font-semibold text-orange-600 dark:text-orange-400">{unreadCount}</span>
+                                        Pesan baru: <span className="font-semibold text-orange-500 dark:text-orange-400">{unreadCount}</span>
                                     </p>
                                 </div>
                             </div>
@@ -232,17 +186,16 @@ export default function SalesNotifications({ notifications, unreadCount }: Props
                                         type="button"
                                         onClick={handleTogglePushNotifications}
                                         disabled={isCheckingPushStatus || isTogglingPush}
-                                        className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-70 ${isPushEnabled
-                                            ? 'bg-slate-700 hover:bg-slate-800'
-                                            : 'bg-purple-600 hover:bg-purple-700'
-                                            }`}
+                                        className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition-all active:scale-95 disabled:opacity-50 ${
+                                            isPushEnabled
+                                                ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                                : 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
+                                        }`}
                                     >
                                         <BellRing size={16} />
-                                        {isCheckingPushStatus
-                                            ? 'Memuat Status...'
-                                            : isTogglingPush
-                                                ? (isPushEnabled ? 'Menonaktifkan...' : 'Mengaktifkan...')
-                                                : (isPushEnabled ? 'Nonaktifkan Push' : 'Aktifkan Push')}
+                                        <span className="hidden sm:inline">
+                                            {isCheckingPushStatus ? 'Memuat...' : isTogglingPush ? 'Memproses...' : (isPushEnabled ? 'Matikan Push' : 'Aktifkan Push')}
+                                        </span>
                                     </button>
                                 )}
 
@@ -250,149 +203,164 @@ export default function SalesNotifications({ notifications, unreadCount }: Props
                                     type="button"
                                     onClick={handleMarkAllAsRead}
                                     disabled={unreadCount === 0}
-                                    className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-blue-50 px-4 text-sm font-semibold text-blue-700 transition-all active:scale-95 disabled:opacity-50 disabled:bg-slate-100 disabled:text-slate-400 dark:bg-blue-500/10 dark:text-blue-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
                                 >
                                     <CheckCheck size={16} />
-                                    Tandai Semua Dibaca
+                                    <span className="hidden sm:inline">Tandai Semua Dibaca</span>
                                 </button>
                             </div>
                         </div>
                     </div>
 
-                    <div className="space-y-3">
-                        <div className="mb-2 flex items-center gap-2">
+                    <div className="space-y-4">
+                        {/* Segmented Control Android Style (Menggunakan Biru & Oranye) */}
+                        <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-200/60 p-1.5 dark:bg-slate-800/60">
                             <button
                                 type="button"
                                 onClick={() => setReadFilter('unread')}
-                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${readFilter === 'unread'
-                                    ? 'bg-orange-500 text-white'
-                                    : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-800'
-                                    }`}
+                                className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all active:scale-95 ${
+                                    readFilter === 'unread'
+                                        ? 'bg-white text-orange-600 shadow-sm dark:bg-slate-900 dark:text-orange-500'
+                                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+                                }`}
                             >
-                                Belum Dibaca ({unreadNotifications.length})
+                                Belum Dibaca 
+                                <span className={`flex h-5 w-5 items-center justify-center rounded-md text-[11px] ${
+                                    readFilter === 'unread' ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/20' : 'bg-slate-200 text-slate-600 dark:bg-slate-700'
+                                }`}>
+                                    {unreadNotifications.length}
+                                </span>
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setReadFilter('read')}
-                                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${readFilter === 'read'
-                                    ? 'bg-emerald-600 text-white'
-                                    : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-800'
-                                    }`}
+                                className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all active:scale-95 ${
+                                    readFilter === 'read'
+                                        ? 'bg-white text-blue-600 shadow-sm dark:bg-slate-900 dark:text-blue-500'
+                                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+                                }`}
                             >
-                                Sudah Dibaca ({readNotifications.length})
+                                Sudah Dibaca
                             </button>
                         </div>
 
+                        {/* Empty State */}
                         {filteredNotifications.length === 0 && (
-                            <div className="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-black/5 dark:bg-slate-900 dark:ring-white/10">
-                                <p className="text-sm text-slate-500 dark:text-slate-400">
-                                    {readFilter === 'unread' ? 'Tidak ada notifikasi belum dibaca.' : 'Tidak ada notifikasi yang sudah dibaca.'}
+                            <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-transparent py-16 text-center dark:border-slate-700">
+                                <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
+                                    <Inbox size={24} className="text-slate-400" />
+                                </div>
+                                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                                    {readFilter === 'unread' ? 'Hore! Tidak ada notifikasi baru.' : 'Belum ada riwayat notifikasi.'}
                                 </p>
                             </div>
                         )}
 
-                        {filteredNotifications.map((notification) => {
-                            const isUnread = notification.status === 'unread';
-                            const hasActionLink = !!notification.action_url && !isReadEndpointUrl(notification.action_url);
+                        {/* Cards Notifikasi Mobile Style */}
+                        <div className="grid gap-3">
+                            {filteredNotifications.map((notification) => {
+                                const isUnread = notification.status === 'unread';
+                                const hasActionLink = !!notification.action_url && !isReadEndpointUrl(notification.action_url);
 
-                            return (
-                                <div
-                                    key={notification.id}
-                                    className={`group rounded-2xl border p-4 transition ${isUnread
-                                        ? 'border-orange-200 bg-orange-50/50 dark:border-orange-800/50 dark:bg-orange-900/10'
-                                        : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900'
+                                return (
+                                    <div
+                                        key={notification.id}
+                                        className={`group relative overflow-hidden rounded-2xl border p-4 shadow-sm transition-all active:scale-[0.99] sm:p-5 ${
+                                            isUnread
+                                                ? 'border-orange-100 bg-white dark:border-orange-900/30 dark:bg-slate-900'
+                                                : 'border-slate-100 bg-slate-50/50 dark:border-slate-800/80 dark:bg-slate-900/40'
                                         }`}
-                                >
-                                    <div className="flex flex-wrap items-start justify-between gap-3">
-                                        <div className="space-y-2">
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">{notification.title}</h2>
+                                    >
+                                        {/* Aksen garis kiri tipis warna oranye untuk unread (Gaya Android Material) */}
+                                        {isUnread && (
+                                            <div className="absolute left-0 top-0 h-full w-1.5 bg-orange-500"></div>
+                                        )}
 
-                                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${priorityClassMap[notification.priority]}`}>
-                                                    {notification.priority}
-                                                </span>
+                                        <div className="flex flex-col gap-3">
+                                            {/* Header Card */}
+                                            <div className="flex flex-wrap items-start justify-between gap-2">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <h2 className={`text-base font-bold ${isUnread ? 'text-slate-900 dark:text-slate-100' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                        {notification.title}
+                                                    </h2>
+                                                    
+                                                    {notification.priority !== 'normal' && (
+                                                        <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${priorityClassMap[notification.priority]}`}>
+                                                            {notification.priority}
+                                                        </span>
+                                                    )}
+                                                </div>
 
-                                                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                                                    {notification.channel}
-                                                </span>
+                                                <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                                                    <Clock3 size={12} />
+                                                    {formatDateTime(notification.created_at)}
+                                                </div>
                                             </div>
 
-                                            <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+                                            {/* Body Card */}
+                                            <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400">
                                                 {notification.message}
                                             </p>
 
-                                            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
-                                                <span className="inline-flex items-center gap-1">
-                                                    <Clock3 size={13} />
-                                                    {formatDateTime(notification.created_at)}
-                                                </span>
-
-                                                {notification.expires_at && (
-                                                    <span>
-                                                        Exp: {formatDateTime(notification.expires_at)}
-                                                    </span>
+                                            {/* Footer Card (Actions) */}
+                                            <div className="mt-1 flex flex-wrap items-center gap-2">
+                                                {hasActionLink && (
+                                                    <Link
+                                                        href={`/notifications/${notification.id}/read`}
+                                                        className="inline-flex min-h-9 items-center justify-center rounded-xl bg-blue-50 px-4 py-1.5 text-xs font-semibold text-blue-700 transition-colors active:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-400"
+                                                    >
+                                                        Buka Detail
+                                                    </Link>
                                                 )}
-                                            </div>
-                                        </div>
 
-                                        <div className="flex items-center gap-2">
-                                            {hasActionLink && (
-                                                <Link
-                                                    href={notification.action_url as string}
-                                                    className="rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50 dark:border-blue-700/40 dark:text-blue-300 dark:hover:bg-blue-900/30"
-                                                >
-                                                    Buka
-                                                </Link>
-                                            )}
-
-                                            {isUnread ? (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleMarkAsRead(notification.id)}
-                                                    className="inline-flex items-center gap-1 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-orange-600"
-                                                >
-                                                    <BellRing size={14} />
-                                                    Tandai Dibaca
-                                                </button>
-                                            ) : (
-                                                <div className="flex items-center gap-2">
-                                                    <span className="hidden text-xs font-semibold text-emerald-600 transition md:inline md:group-hover:hidden dark:text-emerald-400">
-                                                        Sudah dibaca
-                                                    </span>
-
+                                                {isUnread ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleMarkAsRead(notification.id)}
+                                                        className="inline-flex min-h-9 items-center gap-1.5 rounded-xl bg-orange-50 px-4 py-1.5 text-xs font-semibold text-orange-600 transition-colors active:bg-orange-100 dark:bg-orange-500/10 dark:text-orange-400"
+                                                    >
+                                                        <CheckCheck size={14} />
+                                                        Tandai Dibaca
+                                                    </button>
+                                                ) : (
                                                     <button
                                                         type="button"
                                                         onClick={() => handleMarkAsUnread(notification.id)}
-                                                        className="inline-flex items-center gap-1 rounded-lg bg-slate-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800 md:hidden md:group-hover:inline-flex dark:bg-slate-600 dark:hover:bg-slate-500"
+                                                        className="inline-flex min-h-9 items-center gap-1.5 rounded-xl bg-transparent px-2 py-1.5 text-xs font-semibold text-slate-400 transition-colors active:bg-slate-200 dark:text-slate-500"
                                                     >
-                                                        <Bell size={14} />
+                                                        <BellRing size={14} />
                                                         Tandai Belum Dibaca
                                                     </button>
-                                                </div>
-                                            )}
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            );
-                        })}
+                                );
+                            })}
+                        </div>
                     </div>
 
+                    {/* Pagination - Touch Friendly */}
                     {notifications.links.length > 3 && (
-                        <div className="flex flex-wrap items-center gap-2 pt-2">
-                            {notifications.links.map((link, index) => (
-                                <Link
-                                    key={`${link.label}-${index}`}
-                                    href={link.url ?? '#'}
-                                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${link.active
-                                        ? 'bg-blue-600 text-white'
-                                        : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-slate-800'
+                        <div className="flex flex-wrap items-center justify-center gap-2 pt-4">
+                            {notifications.links.map((link, index) => {
+                                const isTextLabel = link.label.includes('&laquo;') || link.label.includes('&raquo;');
+                                return (
+                                    <Link
+                                        key={`${link.label}-${index}`}
+                                        href={link.url ?? '#'}
+                                        className={`flex min-h-10 min-w-10 items-center justify-center rounded-xl px-3 text-sm font-semibold transition-all active:scale-95 ${
+                                            link.active
+                                                ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
+                                                : 'bg-white text-slate-600 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-400 dark:ring-slate-800'
                                         } ${!link.url ? 'pointer-events-none opacity-50' : ''}`}
-                                    preserveScroll
-                                    preserveState
-                                >
-                                    <span dangerouslySetInnerHTML={{ __html: link.label }} />
-                                </Link>
-                            ))}
+                                        preserveScroll
+                                        preserveState
+                                    >
+                                        <span dangerouslySetInnerHTML={{ __html: isTextLabel ? (link.label.includes('&laquo;') ? '‹' : '›') : link.label }} />
+                                    </Link>
+                                );
+                            })}
                         </div>
                     )}
                 </div>

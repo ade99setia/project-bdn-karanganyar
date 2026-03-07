@@ -16,6 +16,13 @@ if (Capacitor.isNativePlatform()) {
     StatusBar.setStyle({ style: Style.Dark });
 }
 
+const isSamsungDevice =
+    typeof navigator !== 'undefined' && /SamsungBrowser|SM-|SAMSUNG/i.test(navigator.userAgent);
+
+if (typeof document !== 'undefined') {
+    document.body.classList.toggle('is-samsung-device', isSamsungDevice);
+}
+
 initializeOfflineHttp();
 registerServiceWorker();
 

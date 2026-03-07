@@ -35,6 +35,9 @@ export default function ImagePreviewModal({ isOpen, onClose, imageUrl }: ImagePr
                         minScale={0.5}
                         maxScale={5}
                         centerOnInit={true}
+                        centerZoomedOut={false}
+                        limitToBounds={false}
+                        alignmentAnimation={{ disabled: true }}
                         wheel={{ step: 0.2 }}
                         doubleClick={{ disabled: false }}
                         panning={{ velocityDisabled: false }}
@@ -42,11 +45,12 @@ export default function ImagePreviewModal({ isOpen, onClose, imageUrl }: ImagePr
                         {({ zoomIn, zoomOut, resetTransform }) => (
                             <>
                                 {/* Gambar Utama */}
-                                <TransformComponent wrapperClass="w-screen h-screen flex items-center justify-center">
+                                <TransformComponent wrapperClass="w-screen h-screen flex items-center justify-center overflow-hidden">
                                     <img
                                         src={imageUrl}
                                         alt="Preview"
                                         className="w-auto h-auto max-w-screen max-h-screen object-contain shadow-2xl drop-shadow-2xl m-auto"
+                                        draggable={false}
                                         style={{ display: 'block', margin: 'auto', maxWidth: '100vw', maxHeight: '100vh' }}
                                     />
                                 </TransformComponent>

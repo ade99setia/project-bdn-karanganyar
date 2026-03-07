@@ -124,7 +124,7 @@ export default function VisitHistorySection({
                                     }`
                             }
                         >
-                            <div className="shrink-0 mt-1 sm:mt-0">
+                            <div className="shrink-0 mt-1 sm:mt-0 flex flex-col items-center gap-1">
                                 <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center transition-all duration-300 border shadow-sm
                                     ${isSelected
                                         ? 'bg-orange-500 border-orange-500 text-white'
@@ -135,6 +135,9 @@ export default function VisitHistorySection({
                                         {String(itemNumber).padStart(2, '0')}
                                     </span>
                                 </div>
+                                <span className="text-[11px] font-semibold leading-none text-orange-600 dark:text-orange-400">
+                                    {visit.id}
+                                </span>
                             </div>
 
                             <div className={`shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-xl overflow-hidden relative border transition-colors shadow-sm

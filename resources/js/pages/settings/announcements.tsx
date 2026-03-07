@@ -6,8 +6,8 @@ import TiptapUnderline from '@tiptap/extension-underline';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import imageCompression from 'browser-image-compression';
-import { Bell, Bold, CheckCheck, ImagePlus, Italic, Link2, List, ListOrdered, Loader2, Send, Trash2, Underline, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
+import { Bell, Bold, CheckCheck, Heading2, ImagePlus, Italic, Link2, List, ListOrdered, Loader2, Quote, Send, Trash2, Underline, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import UserMultiSelect from '@/components/inputs/UserMultiSelect';
 import WerehouseMultiSelect from '@/components/inputs/WerehouseMultiSelect';
 import AlertModal from '@/components/modal/alert-modal';
@@ -200,7 +200,7 @@ export default function NotificationSettingsPage() {
         },
         editorProps: {
             attributes: {
-                class: 'min-h-56 w-full rounded-b-xl bg-white px-4 py-3 text-sm leading-7 text-slate-700 focus:outline-none dark:bg-gray-800 dark:text-slate-200 [&_h1]:mt-6 [&_h1]:text-3xl [&_h1]:font-bold [&_h1]:leading-tight [&_h1]:text-slate-900 dark:[&_h1]:text-slate-100 [&_h2]:mt-5 [&_h2]:text-2xl [&_h2]:font-semibold [&_h2]:leading-tight [&_h2]:text-slate-900 dark:[&_h2]:text-slate-100 [&_h3]:mt-4 [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:text-slate-900 dark:[&_h3]:text-slate-100 [&_p]:my-3 [&_p]:leading-7 [&_ul]:my-3 [&_ul]:ml-6 [&_ul]:list-disc [&_ul]:space-y-1 [&_ol]:my-3 [&_ol]:ml-6 [&_ol]:list-decimal [&_ol]:space-y-1 [&_li]:pl-1 [&_a]:font-medium [&_a]:text-blue-600 [&_a]:underline [&_a]:underline-offset-2 hover:[&_a]:text-blue-700 dark:[&_a]:text-blue-400 dark:hover:[&_a]:text-blue-300 [&_blockquote]:my-4 [&_blockquote]:border-l-4 [&_blockquote]:border-slate-300 [&_blockquote]:bg-slate-50 [&_blockquote]:px-4 [&_blockquote]:py-2 [&_blockquote]:italic dark:[&_blockquote]:border-slate-700 dark:[&_blockquote]:bg-slate-800/60 [&_img]:my-4 [&_img]:h-auto [&_img]:max-w-full [&_img]:rounded-xl [&_img]:border [&_img]:border-slate-200 dark:[&_img]:border-slate-700 [&_hr]:my-6 [&_hr]:border-slate-200 dark:[&_hr]:border-slate-700',
+                class: 'min-h-56 w-full rounded-b-xl bg-white px-4 py-3 text-sm leading-7 text-slate-700 focus:outline-none dark:bg-gray-800 dark:text-slate-200 [&_h1]:mt-6 [&_h1]:text-3xl [&_h1]:font-bold [&_h1]:leading-tight [&_h1]:text-slate-900 dark:[&_h1]:text-slate-100 [&_h2]:my-5 [&_h2]:rounded-r-lg [&_h2]:border-l-4 [&_h2]:border-blue-500 [&_h2]:bg-blue-50 [&_h2]:px-3 [&_h2]:py-2 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:leading-tight [&_h2]:text-blue-900 dark:[&_h2]:border-blue-400 dark:[&_h2]:bg-blue-900/20 dark:[&_h2]:text-blue-100 [&_h3]:mt-4 [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:text-slate-900 dark:[&_h3]:text-slate-100 [&_p]:my-3 [&_p]:leading-7 [&_ul]:my-3 [&_ul]:ml-6 [&_ul]:list-disc [&_ul]:space-y-1 [&_ol]:my-3 [&_ol]:ml-6 [&_ol]:list-decimal [&_ol]:space-y-1 [&_li]:pl-1 [&_a]:font-medium [&_a]:text-blue-600 [&_a]:underline [&_a]:underline-offset-2 hover:[&_a]:text-blue-700 dark:[&_a]:text-blue-400 dark:hover:[&_a]:text-blue-300 [&_blockquote]:my-4 [&_blockquote]:border-l-4 [&_blockquote]:border-slate-300 [&_blockquote]:bg-slate-50 [&_blockquote]:px-4 [&_blockquote]:py-2 [&_blockquote]:italic dark:[&_blockquote]:border-slate-700 dark:[&_blockquote]:bg-slate-800/60 [&_img]:my-4 [&_img]:h-auto [&_img]:max-w-full [&_img]:rounded-xl [&_img]:border [&_img]:border-slate-200 dark:[&_img]:border-slate-700 [&_hr]:my-6 [&_hr]:border-slate-200 dark:[&_hr]:border-slate-700',
             },
         },
         immediatelyRender: false,
@@ -210,14 +210,52 @@ export default function NotificationSettingsPage() {
         window.localStorage.setItem(TOKEN_READY_FILTER_STORAGE_KEY, String(showTokenReadyOnly));
     }, [showTokenReadyOnly]);
 
-    const showAlert = (nextTitle: string, nextMessage: ReactNode, type: AlertConfigType['type']) => {
+    useEffect(() => {
+        document.body.dataset.disableSidebarShortcut = 'true';
+
+        return () => {
+            delete document.body.dataset.disableSidebarShortcut;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!tiptapEditor) {
+            return;
+        }
+
+        const handleEditorShortcuts = (event: KeyboardEvent) => {
+            const isModifierPressed = event.ctrlKey || event.metaKey;
+
+            if (!isModifierPressed || event.key.toLowerCase() !== 'b') {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+
+            if (event.shiftKey) {
+                tiptapEditor.chain().focus().toggleBlockquote().run();
+                return;
+            }
+
+            tiptapEditor.chain().focus().toggleBold().run();
+        };
+
+        window.addEventListener('keydown', handleEditorShortcuts, true);
+
+        return () => {
+            window.removeEventListener('keydown', handleEditorShortcuts, true);
+        };
+    }, [tiptapEditor]);
+
+    const showAlert = useCallback((nextTitle: string, nextMessage: ReactNode, type: AlertConfigType['type']) => {
         setAlertConfig({
             isOpen: true,
             title: nextTitle,
             message: nextMessage,
             type,
         });
-    };
+    }, []);
 
     const filteredUsers = useMemo(() => {
         const selectedRoleSet = new Set(selectedRoleIds.map((id) => Number(id)));
@@ -340,7 +378,7 @@ export default function NotificationSettingsPage() {
         setSelectedUserIds((prev) => prev.filter((id) => Number(id) !== Number(userId)));
     };
 
-    const runEditorCommand = (command: 'bold' | 'italic' | 'underline' | 'insertUnorderedList' | 'insertOrderedList') => {
+    const runEditorCommand = (command: 'bold' | 'italic' | 'underline' | 'insertUnorderedList' | 'insertOrderedList' | 'heading' | 'blockquote') => {
         if (!tiptapEditor) {
             return;
         }
@@ -367,11 +405,20 @@ export default function NotificationSettingsPage() {
             return;
         }
 
+        if (command === 'heading') {
+            chain.toggleHeading({ level: 2 }).run();
+            return;
+        }
+
+        if (command === 'blockquote') {
+            chain.toggleBlockquote().run();
+            return;
+        }
+
         chain.toggleOrderedList().run();
     };
 
-    const handleInsertImage = async (event: ChangeEvent<HTMLInputElement>) => {
-        const selectedFile = event.target.files?.[0];
+    const insertImageToEditor = useCallback(async (selectedFile: File) => {
         if (!selectedFile) {
             return;
         }
@@ -392,11 +439,7 @@ export default function NotificationSettingsPage() {
             const reader = new FileReader();
             reader.onload = () => {
                 const result = typeof reader.result === 'string' ? reader.result : '';
-                if (!result) {
-                    return;
-                }
-
-                if (!tiptapEditor) {
+                if (!result || !tiptapEditor) {
                     return;
                 }
 
@@ -405,10 +448,6 @@ export default function NotificationSettingsPage() {
                     .focus()
                     .setImage({ src: result, alt: 'announcement-image' })
                     .run();
-
-                if (imageInputRef.current) {
-                    imageInputRef.current.value = '';
-                }
             };
 
             reader.readAsDataURL(finalFile);
@@ -419,10 +458,44 @@ export default function NotificationSettingsPage() {
                 'error'
             );
         } finally {
-            if (imageInputRef.current) {
-                imageInputRef.current.value = '';
-            }
             setIsCompressingAnnouncementImage(false);
+        }
+    }, [showAlert, tiptapEditor]);
+
+    useEffect(() => {
+        if (!tiptapEditor) {
+            return;
+        }
+
+        const editorDom = tiptapEditor.view.dom;
+
+        const handleEditorPaste = (event: ClipboardEvent) => {
+            const imageFile = Array.from(event.clipboardData?.files ?? []).find((file) => file.type.startsWith('image/'));
+            if (!imageFile) {
+                return;
+            }
+
+            event.preventDefault();
+            void insertImageToEditor(imageFile);
+        };
+
+        editorDom.addEventListener('paste', handleEditorPaste as EventListener);
+
+        return () => {
+            editorDom.removeEventListener('paste', handleEditorPaste as EventListener);
+        };
+    }, [insertImageToEditor, tiptapEditor]);
+
+    const handleInsertImage = async (event: ChangeEvent<HTMLInputElement>) => {
+        const selectedFile = event.target.files?.[0];
+        if (!selectedFile) {
+            return;
+        }
+
+        await insertImageToEditor(selectedFile);
+
+        if (imageInputRef.current) {
+            imageInputRef.current.value = '';
         }
     };
 
@@ -730,6 +803,12 @@ export default function NotificationSettingsPage() {
                                 </button>
                                 <button type="button" onClick={() => runEditorCommand('underline')} className="rounded-md border border-slate-300 px-2 py-1 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700">
                                     <Underline className="h-4 w-4" />
+                                </button>
+                                <button type="button" onClick={() => runEditorCommand('heading')} className="rounded-md border border-slate-300 px-2 py-1 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700">
+                                    <Heading2 className="h-4 w-4" />
+                                </button>
+                                <button type="button" onClick={() => runEditorCommand('blockquote')} className="rounded-md border border-slate-300 px-2 py-1 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700">
+                                    <Quote className="h-4 w-4" />
                                 </button>
                                 <button type="button" onClick={() => runEditorCommand('insertUnorderedList')} className="rounded-md border border-slate-300 px-2 py-1 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700">
                                     <List className="h-4 w-4" />

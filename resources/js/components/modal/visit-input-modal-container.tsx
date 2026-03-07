@@ -97,6 +97,58 @@ export default function VisitInputModalContainer({
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
 
+    const getCaptureProfile = () => {
+        const deviceMemory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 4;
+        const isLowMemoryDevice = deviceMemory <= 2;
+
+        return {
+            isLowMemoryDevice,
+            streamWidthIdeal: isLowMemoryDevice ? 1280 : 1920,
+            streamHeightIdeal: isLowMemoryDevice ? 720 : 1080,
+            streamWidthMax: isLowMemoryDevice ? 1280 : 2560,
+            streamHeightMax: isLowMemoryDevice ? 720 : 1440,
+            captureMaxLongEdge: isLowMemoryDevice ? 1280 : 1920,
+            compressMaxSizeMB: isLowMemoryDevice ? 0.3 : 0.42,
+            compressMaxWidthOrHeight: isLowMemoryDevice ? 1024 : 1280,
+            compressInitialQuality: isLowMemoryDevice ? 0.76 : 0.82,
+        };
+    };
+
+    const optimizeCameraTrack = async (track: MediaStreamTrack) => {
+        try {
+            const capabilities = (track.getCapabilities?.() ?? {}) as {
+                focusMode?: string[];
+                exposureMode?: string[];
+                whiteBalanceMode?: string[];
+                sharpness?: { max?: number };
+            };
+
+            const advancedConstraints: Record<string, unknown>[] = [];
+
+            if (capabilities.focusMode?.includes('continuous')) {
+                advancedConstraints.push({ focusMode: 'continuous' });
+            }
+
+            if (capabilities.exposureMode?.includes('continuous')) {
+                advancedConstraints.push({ exposureMode: 'continuous' });
+            }
+
+            if (capabilities.whiteBalanceMode?.includes('continuous')) {
+                advancedConstraints.push({ whiteBalanceMode: 'continuous' });
+            }
+
+            if (typeof capabilities.sharpness?.max === 'number' && capabilities.sharpness.max > 0) {
+                advancedConstraints.push({ sharpness: capabilities.sharpness.max });
+            }
+
+            if (advancedConstraints.length > 0) {
+                await track.applyConstraints({ advanced: advancedConstraints } as MediaTrackConstraints);
+            }
+        } catch {
+            // Ignore unsupported camera constraint controls.
+        }
+    };
+
     const [cart, setCart] = useState<CartItem[]>([]);
     const [tempProdId, setTempProdId] = useState<string>('');
     const [tempQty, setTempQty] = useState<number>(0);
@@ -126,15 +178,14 @@ export default function VisitInputModalContainer({
         setIsLoadingCustomers(true);
 
         const loadNearbyCustomers = async () => {
-            const pos = await getVerifiedLocation();
-
-            if (!pos) {
-                setCustomerMode('manual');
-                setIsLoadingCustomers(false);
-                return;
-            }
-
             try {
+                const pos = await getVerifiedLocation();
+
+                if (!pos) {
+                    onClose();
+                    return;
+                }
+
                 const { latitude, longitude } = pos.coords;
                 const res = await axios.post('/sales/utils/nearby-customers', {
                     lat: latitude,
@@ -145,14 +196,11 @@ export default function VisitInputModalContainer({
                 setNearbyCustomers(customers);
                 setCustomerMode(customers.length > 0 ? 'database' : 'manual');
             } catch (error: unknown) {
-                if (error instanceof Error) {
-                    showAlert(
-                        'Gagal Mengambil Lokasi Terdekat',
-                        `Error: ${error.message || 'Tidak ada customer terdekat dalam radius 2km'}`,
-                        'warning'
-                    );
+                onClose();
+
+                if (error instanceof Error && error.message) {
+                    showAlert('Gagal Mengambil Lokasi GPS', `Error: ${error.message}`, 'warning');
                 }
-                setCustomerMode('manual');
             } finally {
                 setIsLoadingCustomers(false);
             }
@@ -186,14 +234,35 @@ export default function VisitInputModalContainer({
         try {
             stopCamera();
 
-            const mediaStream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    facingMode: { ideal: 'environment' },
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 },
-                },
-                audio: false,
-            });
+            const profile = getCaptureProfile();
+
+            let mediaStream: MediaStream;
+
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: { ideal: 'environment' },
+                        width: { ideal: profile.streamWidthIdeal, max: profile.streamWidthMax },
+                        height: { ideal: profile.streamHeightIdeal, max: profile.streamHeightMax },
+                        frameRate: { ideal: 30, max: 30 },
+                    },
+                    audio: false,
+                });
+            } catch {
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: { ideal: 'environment' },
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                    },
+                    audio: false,
+                });
+            }
+
+            const videoTrack = mediaStream.getVideoTracks()[0];
+            if (videoTrack) {
+                await optimizeCameraTrack(videoTrack);
+            }
 
             streamRef.current = mediaStream;
             setIsCameraOpen(true);
@@ -219,12 +288,13 @@ export default function VisitInputModalContainer({
     const processPhotoFile = async (file: File) => {
         setIsCompressing(true);
         try {
+            const profile = getCaptureProfile();
             const compressed = await imageCompression(file, {
-                maxSizeMB: 0.35,
-                maxWidthOrHeight: 1024,
+                maxSizeMB: profile.compressMaxSizeMB,
+                maxWidthOrHeight: profile.compressMaxWidthOrHeight,
                 fileType: 'image/webp',
-                initialQuality: 0.72,
-                useWebWorker: false,
+                initialQuality: profile.compressInitialQuality,
+                useWebWorker: true,
             });
             const finalFile = new File([compressed], `visit-${Date.now()}.webp`, { type: 'image/webp' });
             setPhoto(finalFile);
@@ -243,15 +313,24 @@ export default function VisitInputModalContainer({
         void processPhotoFile(file);
     };
 
-    const handleCaptureFromCamera = () => {
+    const handleCaptureFromCamera = async () => {
         const video = videoRef.current;
         if (!video) return;
 
+        const profile = getCaptureProfile();
+
+        const activeTrack = streamRef.current?.getVideoTracks()?.[0] ?? null;
+        if (activeTrack) {
+            await optimizeCameraTrack(activeTrack);
+        }
+
         const sourceWidth = video.videoWidth || 1280;
         const sourceHeight = video.videoHeight || 720;
-        const maxWidth = 1280;
-        const targetWidth = Math.min(sourceWidth, maxWidth);
-        const targetHeight = Math.round((sourceHeight / sourceWidth) * targetWidth);
+
+        const longEdge = Math.max(sourceWidth, sourceHeight);
+        const scale = longEdge > profile.captureMaxLongEdge ? profile.captureMaxLongEdge / longEdge : 1;
+        const targetWidth = Math.max(1, Math.round(sourceWidth * scale));
+        const targetHeight = Math.max(1, Math.round(sourceHeight * scale));
 
         const canvas = document.createElement('canvas');
         canvas.width = targetWidth;
@@ -263,6 +342,8 @@ export default function VisitInputModalContainer({
             return;
         }
 
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
 
         canvas.toBlob((blob) => {
@@ -271,10 +352,10 @@ export default function VisitInputModalContainer({
                 return;
             }
 
-            const file = new File([blob], `visit-${Date.now()}.webp`, { type: 'image/webp' });
+            const file = new File([blob], `visit-${Date.now()}.jpg`, { type: 'image/jpeg' });
             handlePhotoCapture(file);
             stopCamera();
-        }, 'image/webp', 0.78);
+        }, 'image/jpeg', 0.92);
     };
 
     useEffect(() => {

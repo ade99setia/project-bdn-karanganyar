@@ -139,11 +139,19 @@
 
     body {
         @apply bg-background text-foreground;
+        padding-top: 0;
+    }
+
+    body.is-samsung-device {
         padding-top: constant(safe-area-inset-top, 0px); /* iOS lama */
         padding-top: env(safe-area-inset-top, 0px);
     }
 
     .safe-area-inset {
+        padding-top: 0;
+    }
+
+    body.is-samsung-device .safe-area-inset {
         padding-top: env(safe-area-inset-top, 0px);
     }
 }
