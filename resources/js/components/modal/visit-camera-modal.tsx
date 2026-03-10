@@ -1,11 +1,16 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Smartphone } from 'lucide-react';
 import type { RefObject } from 'react';
 
 interface VisitCameraModalProps {
     isOpen: boolean;
     isCompressing: boolean;
+    isStartingCamera: boolean;
+    cameraError: string | null;
     videoRef: RefObject<HTMLVideoElement | null>;
+    cameraMode: 'web' | 'capacitor';
+    onCameraModeChange: (mode: 'web' | 'capacitor') => void;
+    isNativeCameraSupported: boolean;
     onClose: () => void;
     onCapture: () => void;
 }
@@ -13,7 +18,12 @@ interface VisitCameraModalProps {
 export default function VisitCameraModal({
     isOpen,
     isCompressing,
+    isStartingCamera,
+    cameraError,
     videoRef,
+    cameraMode,
+    onCameraModeChange,
+    isNativeCameraSupported,
     onClose,
     onCapture,
 }: VisitCameraModalProps) {
@@ -32,8 +42,22 @@ export default function VisitCameraModal({
                         autoPlay
                         playsInline
                         muted
-                        className="absolute inset-0 w-full h-full object-cover"
+                        className={`absolute inset-0 w-full h-full object-cover ${cameraMode === 'web' ? '' : 'hidden'}`}
                     />
+
+                    {cameraMode === 'capacitor' && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/90 z-5 px-6">
+                            <div className="max-w-sm rounded-2xl border border-cyan-300/40 bg-cyan-500/10 px-4 py-3 text-center">
+                                <p className="text-sm font-semibold text-cyan-100 flex items-center justify-center gap-2">
+                                    <Smartphone size={16} />
+                                    Mode Kamera Capacitor Aktif
+                                </p>
+                                <p className="mt-1 text-xs text-cyan-100/80">
+                                    Tekan tombol shutter untuk membuka kamera native perangkat.
+                                </p>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="absolute top-0 inset-x-0 px-6 py-5 flex justify-between items-center z-20">
                         <span className="text-white/90 font-medium tracking-wide text-sm drop-shadow-md">
@@ -63,11 +87,44 @@ export default function VisitCameraModal({
                     </div>
 
                     <div className="absolute bottom-0 inset-x-0 pb-12 pt-32 bg-linear-to-t from-black/90 via-black/50 to-transparent z-20">
+                        <div className="mb-3 w-full max-w-md mx-auto px-10">
+                            <div className="grid grid-cols-2 gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => onCameraModeChange('web')}
+                                    disabled={isCompressing || isStartingCamera}
+                                    className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${cameraMode === 'web'
+                                        ? 'bg-emerald-500/30 border-emerald-300/50 text-emerald-100'
+                                        : 'bg-black/30 border-white/25 text-white/90 hover:bg-black/45'} disabled:opacity-60`}
+                                >
+                                    Mode Web
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => onCameraModeChange('capacitor')}
+                                    disabled={!isNativeCameraSupported || isCompressing || isStartingCamera}
+                                    className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${cameraMode === 'capacitor'
+                                        ? 'bg-cyan-500/30 border-cyan-300/50 text-cyan-100'
+                                        : 'bg-black/30 border-white/25 text-white/90 hover:bg-black/45'} disabled:opacity-60`}
+                                >
+                                    Mode Capacitor
+                                </button>
+                            </div>
+                        </div>
+
+                        {cameraError && (
+                            <div className="mb-3 w-full max-w-md mx-auto px-10">
+                                <p className="rounded-xl bg-red-500/20 border border-red-300/40 px-3 py-2 text-xs font-semibold text-red-100">
+                                    {cameraError}
+                                </p>
+                            </div>
+                        )}
+
                         <div className="flex items-center justify-between w-full max-w-md mx-auto px-10">
                             <button
                                 type="button"
                                 onClick={onClose}
-                                disabled={isCompressing}
+                                disabled={isCompressing || isStartingCamera}
                                 className="text-white/70 font-medium text-sm hover:text-white transition-colors disabled:opacity-50 w-16 text-left"
                             >
                                 Batal
@@ -77,11 +134,11 @@ export default function VisitCameraModal({
                                 whileTap={{ scale: 0.9 }}
                                 type="button"
                                 onClick={onCapture}
-                                disabled={isCompressing}
+                                disabled={isCompressing || isStartingCamera}
                                 className="relative flex items-center justify-center w-21 h-21 rounded-full border-[3px] border-white/80 disabled:opacity-50 transition-all hover:border-white focus:outline-none"
                                 aria-label="Ambil Gambar"
                             >
-                                {isCompressing ? (
+                                {isCompressing || isStartingCamera ? (
                                     <div className="w-17 h-17 rounded-full bg-white/50 flex items-center justify-center animate-pulse">
                                         <Loader2 className="h-6 w-6 animate-spin text-black" />
                                     </div>

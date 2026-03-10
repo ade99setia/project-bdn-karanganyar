@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import { router } from '@inertiajs/react';
 import axios from 'axios';
 import imageCompression from 'browser-image-compression';
@@ -48,6 +49,24 @@ interface VisitInputModalContainerProps {
     showAlert?: (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info', onConfirm?: () => void, isFatal?: boolean) => void;
 }
 
+type VisitCameraMode = 'web' | 'capacitor';
+
+const VISIT_CAMERA_MODE_STORAGE_KEY = 'visit-camera-mode';
+const MAX_VISIT_IMAGE_BYTES = 100 * 1024;
+
+const readStoredVisitCameraMode = (isNativePlatform: boolean): VisitCameraMode => {
+    if (!isNativePlatform || typeof window === 'undefined') {
+        return 'web';
+    }
+
+    try {
+        const raw = window.localStorage.getItem(VISIT_CAMERA_MODE_STORAGE_KEY);
+        return raw === 'capacitor' ? 'capacitor' : 'web';
+    } catch {
+        return 'web';
+    }
+};
+
 export default function VisitInputModalContainer({
     isOpen,
     onClose,
@@ -56,6 +75,7 @@ export default function VisitInputModalContainer({
     onPreviewImage,
     showAlert: showAlertFromProps,
 }: VisitInputModalContainerProps) {
+    const isNativePlatform = Capacitor.isNativePlatform();
     const [alertConfig, setAlertConfig] = useState({
         isOpen: false,
         title: '',
@@ -94,8 +114,43 @@ export default function VisitInputModalContainer({
     const [isCameraOpen, setIsCameraOpen] = useState(false);
     const [isStartingCamera, setIsStartingCamera] = useState(false);
     const [cameraError, setCameraError] = useState<string | null>(null);
+    const [cameraMode, setCameraMode] = useState<VisitCameraMode>(() => readStoredVisitCameraMode(Capacitor.isNativePlatform()));
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
+
+    useEffect(() => {
+        if (!isNativePlatform && cameraMode !== 'web') {
+            setCameraMode('web');
+        }
+    }, [cameraMode, isNativePlatform]);
+
+    const persistVisitCameraMode = (nextMode: VisitCameraMode) => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+
+        try {
+            window.localStorage.setItem(VISIT_CAMERA_MODE_STORAGE_KEY, nextMode);
+        } catch {
+            // Ignore storage failures.
+        }
+    };
+
+    const handleCameraModeChange = (nextMode: VisitCameraMode) => {
+        if (nextMode === 'capacitor' && !isNativePlatform) {
+            setCameraError('Mode kamera Capacitor hanya tersedia di aplikasi native.');
+            return;
+        }
+
+        if (nextMode === cameraMode) {
+            return;
+        }
+
+        stopCamera();
+        setCameraMode(nextMode);
+        persistVisitCameraMode(nextMode);
+        setCameraError(null);
+    };
 
     const getCaptureProfile = () => {
         const deviceMemory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 4;
@@ -108,7 +163,7 @@ export default function VisitInputModalContainer({
             streamWidthMax: isLowMemoryDevice ? 1280 : 2560,
             streamHeightMax: isLowMemoryDevice ? 720 : 1440,
             captureMaxLongEdge: isLowMemoryDevice ? 1280 : 1920,
-            compressMaxSizeMB: isLowMemoryDevice ? 0.3 : 0.42,
+            compressMaxSizeMB: isLowMemoryDevice ? 0.095 : 0.1,
             compressMaxWidthOrHeight: isLowMemoryDevice ? 1024 : 1280,
             compressInitialQuality: isLowMemoryDevice ? 0.76 : 0.82,
         };
@@ -222,11 +277,18 @@ export default function VisitInputModalContainer({
             videoRef.current.srcObject = null;
         }
 
+        setIsStartingCamera(false);
         setIsCameraOpen(false);
     };
 
     const startCamera = async () => {
         if (isStartingCamera || isCompressing) return;
+
+        if (cameraMode === 'capacitor') {
+            setCameraError(null);
+            setIsCameraOpen(true);
+            return;
+        }
 
         setIsStartingCamera(true);
         setCameraError(null);
@@ -289,15 +351,64 @@ export default function VisitInputModalContainer({
         setIsCompressing(true);
         try {
             const profile = getCaptureProfile();
-            const compressed = await imageCompression(file, {
-                maxSizeMB: profile.compressMaxSizeMB,
-                maxWidthOrHeight: profile.compressMaxWidthOrHeight,
-                fileType: 'image/webp',
-                initialQuality: profile.compressInitialQuality,
-                useWebWorker: true,
-            });
-            const finalFile = new File([compressed], `visit-${Date.now()}.webp`, { type: 'image/webp' });
+
+            const qualitySteps = [
+                profile.compressInitialQuality,
+                0.72,
+                0.62,
+                0.52,
+                0.45,
+                0.38,
+            ];
+            const dimensionSteps = [
+                profile.compressMaxWidthOrHeight,
+                Math.min(profile.compressMaxWidthOrHeight, 1024),
+                960,
+                840,
+                720,
+            ];
+
+            let bestCompressed: Blob | null = null;
+
+            for (const maxWidthOrHeight of dimensionSteps) {
+                for (const quality of qualitySteps) {
+                    const compressed = await imageCompression(file, {
+                        maxSizeMB: profile.compressMaxSizeMB,
+                        maxWidthOrHeight,
+                        fileType: 'image/webp',
+                        initialQuality: quality,
+                        useWebWorker: true,
+                    });
+
+                    if (!bestCompressed || compressed.size < bestCompressed.size) {
+                        bestCompressed = compressed;
+                    }
+
+                    if (compressed.size <= MAX_VISIT_IMAGE_BYTES) {
+                        bestCompressed = compressed;
+                        break;
+                    }
+                }
+
+                if (bestCompressed && bestCompressed.size <= MAX_VISIT_IMAGE_BYTES) {
+                    break;
+                }
+            }
+
+            if (!bestCompressed) {
+                throw new Error('compression-failed');
+            }
+
+            const finalFile = new File([bestCompressed], `visit-${Date.now()}.webp`, { type: 'image/webp' });
             setPhoto(finalFile);
+
+            if (finalFile.size > MAX_VISIT_IMAGE_BYTES) {
+                showAlert(
+                    'Ukuran Foto Masih Besar',
+                    'Foto berhasil diproses tetapi masih di atas 100KB. Coba ambil foto dengan jarak lebih dekat dan pencahayaan cukup.',
+                    'warning'
+                );
+            }
         } catch {
             showAlert(
                 'Gagal Memproses Foto',
@@ -313,7 +424,51 @@ export default function VisitInputModalContainer({
         void processPhotoFile(file);
     };
 
+    const captureFromCapacitorCamera = async () => {
+        try {
+            const cameraModule = await import('@capacitor/camera');
+            const { Camera, CameraResultType, CameraSource } = cameraModule;
+
+            const result = await Camera.getPhoto({
+                quality: 90,
+                allowEditing: false,
+                resultType: CameraResultType.Uri,
+                source: CameraSource.Camera,
+                saveToGallery: false,
+                correctOrientation: true,
+            });
+
+            const sourceUrl = result.webPath ?? result.path;
+            if (!sourceUrl) {
+                setCameraError('Gagal mengambil hasil kamera native. Coba ulangi lagi.');
+                return;
+            }
+
+            const response = await fetch(sourceUrl);
+            const blob = await response.blob();
+
+            if (!blob.size) {
+                setCameraError('File foto dari kamera native tidak valid.');
+                return;
+            }
+
+            const fileType = blob.type || 'image/jpeg';
+            const ext = fileType.includes('png') ? 'png' : 'jpg';
+            const file = new File([blob], `visit-${Date.now()}.${ext}`, { type: fileType });
+
+            handlePhotoCapture(file);
+            stopCamera();
+        } catch {
+            setCameraError('Kamera native dibatalkan atau gagal dipakai. Coba lagi.');
+        }
+    };
+
     const handleCaptureFromCamera = async () => {
+        if (cameraMode === 'capacitor') {
+            await captureFromCapacitorCamera();
+            return;
+        }
+
         const video = videoRef.current;
         if (!video) return;
 
@@ -692,6 +847,9 @@ export default function VisitInputModalContainer({
                 }}
                 onCloseCamera={stopCamera}
                 onCaptureFromCamera={handleCaptureFromCamera}
+                cameraMode={cameraMode}
+                onCameraModeChange={handleCameraModeChange}
+                isNativeCameraSupported={isNativePlatform}
                 products={products}
                 tempProdId={tempProdId}
                 setTempProdId={setTempProdId}

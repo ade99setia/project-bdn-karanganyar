@@ -83,6 +83,9 @@ interface VisitInputModalProps {
     onStartCamera: () => void;
     onCloseCamera: () => void;
     onCaptureFromCamera: () => void;
+    cameraMode: 'web' | 'capacitor';
+    onCameraModeChange: (mode: 'web' | 'capacitor') => void;
+    isNativeCameraSupported: boolean;
     products: Product[];
     tempProdId: string;
     setTempProdId: Dispatch<SetStateAction<string>>;
@@ -138,6 +141,9 @@ export default function VisitInputModal({
     onStartCamera,
     onCloseCamera,
     onCaptureFromCamera,
+    cameraMode,
+    onCameraModeChange,
+    isNativeCameraSupported,
     products,
     tempProdId,
     setTempProdId,
@@ -265,7 +271,12 @@ export default function VisitInputModal({
             <VisitCameraModal
                 isOpen={isCameraOpen}
                 isCompressing={isCompressing}
+                isStartingCamera={isStartingCamera}
+                cameraError={cameraError}
                 videoRef={videoRef}
+                cameraMode={cameraMode}
+                onCameraModeChange={onCameraModeChange}
+                isNativeCameraSupported={isNativeCameraSupported}
                 onClose={onCloseCamera}
                 onCapture={onCaptureFromCamera}
             />

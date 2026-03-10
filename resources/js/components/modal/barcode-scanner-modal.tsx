@@ -1,7 +1,8 @@
+import { Capacitor } from '@capacitor/core';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import { BarcodeFormat } from '@zxing/library';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Loader2, RefreshCcw, ScanLine, X } from 'lucide-react';
+import { Loader2, RefreshCcw, ScanLine, Smartphone, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface BarcodeScannerModalProps {
@@ -18,6 +19,42 @@ interface BarcodeScannerModalProps {
     activeDurationSeconds?: number;
 }
 
+type ScannerMode = 'web' | 'capacitor';
+
+const SCANNER_MODE_STORAGE_KEY = 'barcode-scanner-mode';
+
+type NativeBarcodeScannerModule = {
+    BarcodeScanner: {
+        isSupported: () => Promise<{ supported?: boolean }>;
+        requestPermissions: () => Promise<{ camera?: string }>;
+        scan: (options?: Record<string, unknown>) => Promise<{
+            barcodes?: Array<{ rawValue?: string; displayValue?: string }>;
+        }>;
+        stopScan?: () => Promise<void>;
+    };
+};
+
+const readStoredScannerMode = (): ScannerMode | null => {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+
+    try {
+        const raw = window.localStorage.getItem(SCANNER_MODE_STORAGE_KEY);
+        if (raw === 'web' || raw === 'capacitor') {
+            return raw;
+        }
+    } catch {
+        // Ignore storage access issues.
+    }
+
+    return null;
+};
+
+const toNativePermissionState = (cameraPermission?: string) => {
+    return (cameraPermission ?? '').toLowerCase();
+};
+
 export default function BarcodeScannerModal({
     isOpen,
     onClose,
@@ -31,7 +68,16 @@ export default function BarcodeScannerModal({
     warmupMs = 450,
     activeDurationSeconds = 60,
 }: BarcodeScannerModalProps) {
-    const [scanDistanceMode, setScanDistanceMode] = useState<'normal' | 'macro'>('normal');
+    const isNativePlatform = Capacitor.isNativePlatform();
+    const [scannerMode, setScannerMode] = useState<ScannerMode>(() => {
+        const storedMode = readStoredScannerMode();
+
+        if (!isNativePlatform) {
+            return 'web';
+        }
+
+        return storedMode ?? 'web';
+    });
     const [scannerError, setScannerError] = useState<string | null>(null);
     const [resultMessage, setResultMessage] = useState<string | null>(null);
     const [isStarting, setIsStarting] = useState(false);
@@ -50,6 +96,55 @@ export default function BarcodeScannerModal({
     const warmupUntilRef = useRef<number>(0);
     const activeTimeoutRef = useRef<number | null>(null);
     const countdownIntervalRef = useRef<number | null>(null);
+    const nativeScanSessionRef = useRef(0);
+
+    const persistScannerMode = useCallback((mode: ScannerMode) => {
+        if (typeof window === 'undefined') {
+            return;
+        }
+
+        try {
+            window.localStorage.setItem(SCANNER_MODE_STORAGE_KEY, mode);
+        } catch {
+            // Ignore storage access issues.
+        }
+    }, []);
+
+    const applyScannerMode = useCallback((mode: ScannerMode) => {
+        if (mode === 'capacitor' && !isNativePlatform) {
+            setScannerError('Mode Capacitor hanya tersedia di aplikasi native.');
+            return;
+        }
+
+        setScannerMode(mode);
+        persistScannerMode(mode);
+        setScannerError(null);
+        setResultMessage(mode === 'capacitor'
+            ? 'Mode scanner Capacitor aktif. Kamera native akan dibuka.'
+            : 'Mode scanner Web aktif.');
+        setRestartSeed((prev) => prev + 1);
+    }, [isNativePlatform, persistScannerMode]);
+
+    const fallbackToWebMode = useCallback((message: string) => {
+        setScannerMode('web');
+        persistScannerMode('web');
+        setScannerError(null);
+        setResultMessage(message);
+        setRestartSeed((prev) => prev + 1);
+    }, [persistScannerMode]);
+
+    const stopNativeScanner = useCallback(async () => {
+        if (!isNativePlatform) {
+            return;
+        }
+
+        try {
+            const nativeModule = (await import('@capacitor-mlkit/barcode-scanning')) as NativeBarcodeScannerModule;
+            await nativeModule.BarcodeScanner.stopScan?.();
+        } catch {
+            // Best-effort stop for native scanner.
+        }
+    }, [isNativePlatform]);
 
     const getScannerCameraProfile = () => {
         const deviceMemory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 4;
@@ -80,9 +175,7 @@ export default function BarcodeScannerModal({
             if (zoomRange) {
                 const minZoom = zoomRange.min ?? 1;
                 const maxZoom = zoomRange.max ?? 1;
-                const targetZoom = scanDistanceMode === 'macro'
-                    ? Math.min(Math.max(1.15, minZoom), maxZoom)
-                    : Math.min(Math.max(1, minZoom), maxZoom);
+                const targetZoom = Math.min(Math.max(1, minZoom), maxZoom);
                 advancedConstraints.push({ zoom: targetZoom } as MediaTrackConstraintSet);
             }
 
@@ -113,7 +206,7 @@ export default function BarcodeScannerModal({
             if (typeof capabilities.focusDistance?.max === 'number') {
                 const minFocusDistance = capabilities.focusDistance.min ?? 0;
                 const maxFocusDistance = capabilities.focusDistance.max;
-                const focusRatio = scanDistanceMode === 'macro' ? 0.3 : 0.75;
+                const focusRatio = 0.75;
                 const targetFocusDistance = minFocusDistance + (maxFocusDistance - minFocusDistance) * focusRatio;
                 advancedConstraints.push({ focusDistance: targetFocusDistance } as MediaTrackConstraintSet);
             }
@@ -124,7 +217,7 @@ export default function BarcodeScannerModal({
         } catch {
             // Ignore unsupported camera controls on partial browser implementations.
         }
-    }, [scanDistanceMode]);
+    }, []);
 
     const pickPreferredRearCameraDeviceId = useCallback(async () => {
         if (!navigator.mediaDevices?.enumerateDevices) {
@@ -206,6 +299,8 @@ export default function BarcodeScannerModal({
                 videoRef.current.srcObject = null;
             }
 
+            void stopNativeScanner();
+
             processingRef.current = false;
             candidateCodeRef.current = null;
             candidateCountRef.current = 0;
@@ -218,7 +313,7 @@ export default function BarcodeScannerModal({
                 setRemainingSeconds(activeDurationSeconds);
             }
         },
-        [activeDurationSeconds]
+        [activeDurationSeconds, stopNativeScanner]
     );
 
     const closeScanner = useCallback(() => {
@@ -237,19 +332,28 @@ export default function BarcodeScannerModal({
         setRestartSeed((prev) => prev + 1);
     }, [isOpen, stopScanner]);
 
-    const handleScanDistanceModeChange = useCallback((mode: 'normal' | 'macro') => {
-        if (mode === scanDistanceMode) {
+    useEffect(() => {
+        const storedMode = readStoredScannerMode();
+
+        if (!storedMode) {
             return;
         }
 
-        setScanDistanceMode(mode);
-        setResultMessage(mode === 'macro' ? 'Mode jarak dekat aktif. Menyesuaikan fokus...' : 'Mode normal aktif. Menyesuaikan fokus...');
-        setRestartSeed((prev) => prev + 1);
-    }, [scanDistanceMode]);
+        if (storedMode === 'capacitor' && !isNativePlatform) {
+            setScannerMode('web');
+            return;
+        }
+
+        setScannerMode(storedMode);
+    }, [isNativePlatform]);
 
     useEffect(() => {
         if (!isOpen) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect
+            stopScanner(true);
+            return;
+        }
+
+        if (scannerMode !== 'web') {
             stopScanner(true);
             return;
         }
@@ -509,7 +613,7 @@ export default function BarcodeScannerModal({
         pickPreferredRearCameraDeviceId,
         requiredDetections,
         restartSeed,
-        scanDistanceMode,
+        scannerMode,
         stopScanner,
         warmupMs,
     ]);
@@ -519,6 +623,99 @@ export default function BarcodeScannerModal({
             stopScanner();
         };
     }, [stopScanner]);
+
+    useEffect(() => {
+        if (!isOpen || scannerMode !== 'capacitor') {
+            return;
+        }
+
+        if (!isNativePlatform) {
+            fallbackToWebMode('Mode Capacitor tidak tersedia. Beralih ke scanner web.');
+            return;
+        }
+
+        let isCancelled = false;
+        nativeScanSessionRef.current += 1;
+        const scanSession = nativeScanSessionRef.current;
+
+        const startNativeScan = async () => {
+            setScannerError(null);
+            setResultMessage('Membuka kamera native scanner...');
+            setIsStarting(true);
+            setIsCameraReady(false);
+            setLastDetectedCode(null);
+
+            try {
+                const nativeModule = (await import('@capacitor-mlkit/barcode-scanning')) as NativeBarcodeScannerModule;
+
+                const support = await nativeModule.BarcodeScanner.isSupported();
+                if (!support?.supported) {
+                    fallbackToWebMode('Scanner native tidak didukung di perangkat ini. Beralih ke scanner web.');
+                    return;
+                }
+
+                const permissionStatus = await nativeModule.BarcodeScanner.requestPermissions();
+                const cameraPermission = toNativePermissionState(permissionStatus.camera);
+
+                if (cameraPermission !== 'granted') {
+                    fallbackToWebMode('Izin kamera native tidak tersedia. Beralih ke scanner web.');
+                    return;
+                }
+
+                setResultMessage('Kamera native aktif. Arahkan barcode ke kamera...');
+                setIsStarting(false);
+                setIsCameraReady(true);
+
+                const scanResult = await nativeModule.BarcodeScanner.scan({
+                    lensFacing: 'BACK',
+                });
+
+                if (isCancelled || scanSession !== nativeScanSessionRef.current) {
+                    return;
+                }
+
+                const detectedCode = (scanResult.barcodes ?? [])
+                    .map((barcode) => (barcode.rawValue ?? barcode.displayValue ?? '').trim())
+                    .find((value) => value.length > 0);
+
+                if (!detectedCode) {
+                    setResultMessage('Barcode belum terbaca. Coba scan ulang.');
+                    setIsCameraReady(false);
+                    return;
+                }
+
+                setLastDetectedCode(detectedCode);
+
+                try {
+                    const isMatched = await onDetected(detectedCode);
+
+                    if (isMatched) {
+                        setResultMessage(null);
+                        closeScanner();
+                        return;
+                    }
+
+                    setResultMessage(notFoundMessage);
+                } catch {
+                    setScannerError('Gagal memproses hasil scan native. Coba ulangi lagi.');
+                }
+
+                setIsCameraReady(false);
+            } catch (err: unknown) {
+                const errorName = err instanceof Error ? err.name : 'NativeScanError';
+                fallbackToWebMode(`Scanner native gagal (${errorName}). Beralih ke scanner web.`);
+            } finally {
+                setIsStarting(false);
+            }
+        };
+
+        void startNativeScan();
+
+        return () => {
+            isCancelled = true;
+            void stopNativeScanner();
+        };
+    }, [closeScanner, fallbackToWebMode, isNativePlatform, isOpen, notFoundMessage, onDetected, scannerMode, stopNativeScanner]);
 
     return (
         <AnimatePresence>
@@ -535,8 +732,22 @@ export default function BarcodeScannerModal({
                         autoPlay
                         playsInline
                         muted
-                        className="absolute inset-0 h-full w-full object-contain"
+                        className={`absolute inset-0 h-full w-full object-contain ${scannerMode === 'web' ? '' : 'hidden'}`}
                     />
+
+                    {scannerMode === 'capacitor' && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/90">
+                            <div className="rounded-2xl border border-cyan-300/40 bg-cyan-500/10 px-4 py-3 text-center">
+                                <p className="text-sm font-semibold text-cyan-100 flex items-center gap-2 justify-center">
+                                    <Smartphone size={16} />
+                                    Scanner Native Capacitor Aktif
+                                </p>
+                                <p className="mt-1 text-xs text-cyan-100/80">
+                                    Kamera asli perangkat dibuka langsung untuk pemindaian barcode.
+                                </p>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="absolute top-0 inset-x-0 px-5 py-4 bg-linear-to-b from-black/75 to-transparent z-20 flex items-center justify-between">
                         <div>
@@ -553,61 +764,86 @@ export default function BarcodeScannerModal({
                         </button>
                     </div>
 
-                    <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center p-6">
-                        <div
-                            className="relative rounded-2xl border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.38)] overflow-hidden"
-                            style={{
-                                width: 'min(88vw, 430px)',
-                                height: 'clamp(110px, 24vw, 170px)',
-                            }}
-                        >
-                            {isCameraReady && !scannerError && (
-                                <motion.div
-                                    animate={{
-                                        y: [-52, 192, -52],
-                                        opacity: [0.25, 0.9, 0.25],
-                                    }}
-                                    transition={{
-                                        y: {
-                                            duration: 1.35,
-                                            repeat: Infinity,
-                                            repeatType: 'loop',
-                                            ease: 'linear',
-                                        },
-                                        opacity: {
-                                            duration: 1.35,
-                                            repeat: Infinity,
-                                            repeatType: 'loop',
-                                            ease: 'linear',
-                                        },
-                                    }}
-                                    className="absolute inset-x-0 h-8 bg-linear-to-b from-transparent via-emerald-300/45 to-transparent"
-                                />
-                            )}
-                            <div className="absolute top-2 left-2 text-[10px] font-bold text-white/90 tracking-wide">
-                                {isStarting ? 'MENYIAPKAN KAMERA...' : 'AREA SCAN'}
+                    {scannerMode === 'web' && (
+                        <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center p-6">
+                            <div
+                                className="relative rounded-2xl border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.38)] overflow-hidden"
+                                style={{
+                                    width: 'min(88vw, 430px)',
+                                    height: 'clamp(110px, 24vw, 170px)',
+                                }}
+                            >
+                                {isCameraReady && !scannerError && (
+                                    <motion.div
+                                        animate={{
+                                            y: [-52, 192, -52],
+                                            opacity: [0.25, 0.9, 0.25],
+                                        }}
+                                        transition={{
+                                            y: {
+                                                duration: 1.35,
+                                                repeat: Infinity,
+                                                repeatType: 'loop',
+                                                ease: 'linear',
+                                            },
+                                            opacity: {
+                                                duration: 1.35,
+                                                repeat: Infinity,
+                                                repeatType: 'loop',
+                                                ease: 'linear',
+                                            },
+                                        }}
+                                        className="absolute inset-x-0 h-8 bg-linear-to-b from-transparent via-emerald-300/45 to-transparent"
+                                    />
+                                )}
+                                <div className="absolute top-2 left-2 text-[10px] font-bold text-white/90 tracking-wide">
+                                    {isStarting ? 'MENYIAPKAN KAMERA...' : 'AREA SCAN'}
+                                </div>
+                                {isCameraReady && (
+                                    <div className="absolute top-2 right-2 rounded-md bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-amber-200">
+                                        {remainingSeconds}s
+                                    </div>
+                                )}
+                                {lastDetectedCode && (
+                                    <div className="absolute bottom-2 left-2 right-2 rounded-lg bg-black/55 px-2 py-1 text-[10px] font-semibold text-emerald-200 truncate">
+                                        Terdeteksi: {lastDetectedCode}
+                                    </div>
+                                )}
                             </div>
-                            {isCameraReady && (
-                                <div className="absolute top-2 right-2 rounded-md bg-black/55 px-2 py-0.5 text-[10px] font-semibold text-amber-200">
-                                    {remainingSeconds}s
-                                </div>
-                            )}
-                            {/* <div className="absolute bottom-2 right-2 rounded-md bg-black/55 px-2 py-0.5 text-[9px] font-semibold text-white/80">
-                                Panduan visual
-                            </div> */}
-                            {lastDetectedCode && (
-                                <div className="absolute bottom-2 left-2 right-2 rounded-lg bg-black/55 px-2 py-1 text-[10px] font-semibold text-emerald-200 truncate">
-                                    Terdeteksi: {lastDetectedCode}
-                                </div>
-                            )}
                         </div>
-                    </div>
+                    )}
 
                     <div className="absolute inset-x-0 bottom-0 z-20 px-5 pb-8 pt-14 bg-linear-to-t from-black/90 via-black/55 to-transparent">
+                        <div className="mb-2 grid grid-cols-2 gap-2">
+                            <button
+                                type="button"
+                                onClick={() => applyScannerMode('web')}
+                                className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${scannerMode === 'web'
+                                    ? 'bg-emerald-500/30 border-emerald-300/50 text-emerald-100'
+                                    : 'bg-black/30 border-white/25 text-white/90 hover:bg-black/45'
+                                    }`}
+                            >
+                                Mode Web
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => applyScannerMode('capacitor')}
+                                disabled={!isNativePlatform}
+                                className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${scannerMode === 'capacitor'
+                                    ? 'bg-cyan-500/30 border-cyan-300/50 text-cyan-100'
+                                    : 'bg-black/30 border-white/25 text-white/90 hover:bg-black/45'
+                                    } disabled:cursor-not-allowed disabled:opacity-60`}
+                            >
+                                Mode Capacitor
+                            </button>
+                        </div>
+
                         {isStarting ? (
                             <p className="rounded-xl bg-blue-500/20 border border-blue-300/40 px-3 py-2 text-xs font-semibold text-blue-100 flex items-center gap-2">
                                 <Loader2 size={14} className="animate-spin" />
-                                Membuka kamera dan menyiapkan scanner...
+                                {scannerMode === 'web'
+                                    ? 'Membuka kamera web dan menyiapkan scanner...'
+                                    : 'Membuka kamera native Capacitor...'}
                             </p>
                         ) : scannerError ? (
                             <p className="rounded-xl bg-red-500/20 border border-red-300/40 px-3 py-2 text-xs font-semibold text-red-100">
@@ -620,40 +856,18 @@ export default function BarcodeScannerModal({
                         ) : (
                             <p className="rounded-xl bg-black/40 border border-white/25 px-3 py-2 text-xs font-semibold text-white/90 flex items-center gap-2">
                                 <ScanLine size={14} className="text-emerald-300" />
-                                {scanningMessage}
+                                {scannerMode === 'web' ? scanningMessage : 'Menunggu hasil scanner native...'}
                             </p>
                         )}
 
                         <div className="mt-2">
-                            <div className="mb-2 grid grid-cols-2 gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => handleScanDistanceModeChange('normal')}
-                                    className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${scanDistanceMode === 'normal'
-                                        ? 'bg-emerald-500/30 border-emerald-300/50 text-emerald-100'
-                                        : 'bg-black/30 border-white/25 text-white/90 hover:bg-black/45'
-                                        }`}
-                                >
-                                    Mode Normal
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => handleScanDistanceModeChange('macro')}
-                                    className={`rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${scanDistanceMode === 'macro'
-                                        ? 'bg-emerald-500/30 border-emerald-300/50 text-emerald-100'
-                                        : 'bg-black/30 border-white/25 text-white/90 hover:bg-black/45'
-                                        }`}
-                                >
-                                    Jarak Dekat
-                                </button>
-                            </div>
                             <button
                                 type="button"
                                 onClick={restartScanner}
                                 className="w-full rounded-xl bg-black/40 border border-white/30 px-3 py-2 text-xs font-semibold text-white/95 flex items-center justify-center gap-2"
                             >
                                 <RefreshCcw size={14} />
-                                Muat Ulang Scanner
+                                {scannerMode === 'web' ? 'Muat Ulang Scanner Web' : 'Mulai Ulang Scanner Native'}
                             </button>
                         </div>
                     </div>
