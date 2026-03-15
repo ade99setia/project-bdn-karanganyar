@@ -11,7 +11,7 @@ return new class extends Migration {
             $table->id();
             $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
             $table->string('platform', 20)->default('android');
-            $table->text('token'); // Changed from string() to text() for FCM tokens
+            $table->string('token', 500);
             $table->boolean('is_active')->default(true);
             $table->timestamp('last_used_at')->nullable();
             $table->timestamps();
