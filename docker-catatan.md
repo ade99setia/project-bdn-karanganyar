@@ -1,136 +1,25 @@
-# 🐳 Panduan Lengkap Docker & Laravel (WSL2)
-
-Panduan ini berisi perintah dasar untuk menjalankan **project Laravel menggunakan Docker di WSL2**.  
-Gunakan ini sebagai **cheatsheet cepat** saat development.
+# 🐳 CHEATSHEET LENGKAP: DOCKER & LARAVEL (WSL2 / LINUX)
+Panduan terstruktur untuk menjalankan project Laravel menggunakan Docker.
 
 ---
 
-# 📁 1. Masuk ke Folder Project
+## 🎯 BAGIAN 1: SETUP PERTAMA KALI (Inisialisasi)
+*Lakukan langkah ini HANYA saat pertama kali mengkloning project atau setup di PC baru.*
 
+### 1. Masuk ke Folder Project
 ```bash
+# Untuk WSL2 (Windows)
 cd /mnt/d/3-ProjectWebsite/laragon/www/project-bdn-karanganyar
+
+# Untuk Server Linux (Ubuntu/Kubuntu)
+cd ~/server-hosting/project-bdn-karanganyar
 ```
 
-*(Path `/mnt/d` berarti mengakses drive **D:** dari Windows melalui WSL2).*
-
----
-
-# 🚀 2. Perintah Utama Docker Compose
-
-### Build dan Jalankan Container
-
-```bash
-docker compose up -d --build
-```
-
-*(Digunakan jika ada perubahan pada **Dockerfile** atau **docker-compose.yml**).*
-
-### Jalankan Container (Cepat)
-
-```bash
-docker compose up -d
-```
-
-*(Menjalankan container tanpa rebuild image).*
-
-### Stop Container (Tanpa Menghapus)
-
-```bash
-docker compose stop
-```
-
-*(Container dimatikan sementara tetapi masih tersimpan).*
-
-### Menjalankan Kembali Container
-
-```bash
-docker compose start
-```
-
-*(Menyalakan kembali container yang sebelumnya di-stop).*
-
-### Cek Status Container
-
-```bash
-docker compose ps
-```
-
-*(Melihat container yang sedang berjalan beserta port-nya).*
-
-### Melihat Log Container
-
-```bash
-docker compose logs -f
-```
-
-*(Menampilkan log secara realtime untuk debugging).*
-
----
-
-# 🧹 3. Menghapus Proyek (Teardown & Clean Up)
-
-### Hapus Kontainer & Network SAJA
-
-```bash
-docker compose down --remove-orphans
-```
-
-*(Container dihapus tetapi **database MySQL dan image Docker tetap aman**).*
-
-### Hapus Kontainer + Reset Database
-
-```bash
-docker compose down -v
-```
-
-*(Volume database ikut dihapus sehingga database kembali kosong).*
-
-### Hapus Container + Image Project
-
-```bash
-docker compose down --rmi all
-```
-
-*(Semua image yang dibuat oleh project ini akan dihapus).*
-
-> 💡 **Catatan Penting**  
-> File project kamu di Windows **TIDAK AKAN TERHAPUS**.  
-> Docker hanya menghapus **container, network, dan volume miliknya sendiri**.
-
----
-
-# ⚙️ 4. Inisialisasi Laravel (Pertama Kali)
-
-### Salin File Environment
-
+### 2. Siapkan File Environment (.env)
 ```bash
 cp .env.example .env
 ```
-
-### Generate App Key
-
-```bash
-docker compose exec project-bdn-karanganyar php artisan key:generate
-```
-
-### Jalankan Migration Database
-
-```bash
-docker compose exec project-bdn-karanganyar php artisan migrate
-```
-
-### Membuat Storage Link
-
-```bash
-docker compose exec project-bdn-karanganyar php artisan storage:link
-```
-
----
-
-# 🗄️ 5. Konfigurasi `.env` untuk Docker
-
-Pastikan bagian database seperti berikut:
-
+*Pastikan konfigurasi database di file `.env` seperti ini (sesuaikan dengan docker-compose):*
 ```env
 DB_CONNECTION=mysql
 DB_HOST=db
@@ -138,224 +27,165 @@ DB_PORT=3306
 DB_DATABASE=db_utama
 DB_USERNAME=root
 DB_PASSWORD=root
-
 APP_URL=http://localhost:8081
 ```
 
-*(DB_HOST harus sama dengan nama service database di `docker-compose.yml`).*
+### 3. Build & Jalankan Container Pertama Kali
+```bash
+# Build image dan jalankan di background
+docker compose up -d --build
+```
+
+### 4. Setup Laravel (Di dalam Container)
+```bash
+# Beri akses folder agar Docker bisa menulis file
+sudo chmod -R 777 ./
+sudo chmod -R 777 ./storage
+sudo chmod -R 777 ./bootstrap/cache
+
+# Install dependensi PHP & Node.js
+docker compose exec project-bdn-karanganyar composer install
+docker compose exec project-bdn-karanganyar npm install
+docker compose exec project-bdn-karanganyar npm run build
+
+# Generate App Key & Database
+docker compose exec project-bdn-karanganyar php artisan key:generate
+docker compose exec project-bdn-karanganyar php artisan migrate
+docker compose exec project-bdn-karanganyar php artisan storage:link
+```
+
+*(Selamat! Website Anda sekarang sudah bisa diakses di `http://localhost:8081`)*
 
 ---
 
-# 🛠️ 6. Perintah Maintenance Laravel
+## 💻 BAGIAN 2: OPERASIONAL HARIAN (Daily Coding)
+*Perintah yang akan sering Anda gunakan setiap kali mau ngoding atau mematikan PC.*
 
-### Clear Semua Cache Laravel
+### Manajemen Container
+```bash
+# Menyalakan project (tanpa build ulang)
+docker compose up -d
+
+# Mematikan project sementara (saat selesai ngoding)
+docker compose stop
+
+# Menyalakan kembali project yang di-stop
+docker compose start
+
+# Mengecek status container yang sedang jalan
+docker compose ps
+```
+
+### Masuk ke Dalam Container (Terminal)
+```bash
+# Masuk ke terminal container Laravel
+docker compose exec project-bdn-karanganyar sh
+
+# Ketik 'exit' untuk keluar dari container
+```
+
+---
+
+## 🛠️ BAGIAN 3: PERINTAH RUTIN LARAVEL (Artisan)
+*Perintah untuk manajemen cache, database, dan route saat pengembangan.*
 
 ```bash
+# Clear semua cache Laravel (Jika tampilan/kode tidak update)
 docker compose exec project-bdn-karanganyar php artisan optimize:clear
-```
 
-### Melihat Daftar Route
-
-```bash
+# Melihat daftar route API/Web
 docker compose exec project-bdn-karanganyar php artisan route:list
-```
 
-### Menjalankan Seeder
-
-```bash
+# Menjalankan Seeder database
 docker compose exec project-bdn-karanganyar php artisan db:seed
-```
 
-### Rollback Migration
-
-```bash
+# Rollback (Membatalkan) migration terakhir
 docker compose exec project-bdn-karanganyar php artisan migrate:rollback
 ```
 
 ---
 
-# 💻 7. Akses Terminal Container
+## 🔍 BAGIAN 4: DEBUGGING & LOG ERROR
+*Gunakan ini jika terjadi Error 500, blank screen, atau aplikasi macet.*
 
-### Masuk ke Container
-
+### Log Docker & Server
 ```bash
-docker compose exec project-bdn-karanganyar sh
-```
-
-### Keluar dari Container
-
-```bash
-exit
-```
-
----
-
-# 📝 8. Edit File Langsung di Terminal (Linux / Mini PC)
-
-## Menggunakan Nano (Disarankan)
-
-Buka file:
-
-```bash
-nano .env
-```
-
-Simpan perubahan:
-
-```
-Ctrl + O
-```
-
-Keluar dari editor:
-
-```
-Ctrl + X
-```
-
----
-
-## Menggunakan Vim (Alternatif)
-
-Buka file:
-
-```bash
-vi .env
-```
-
-Masuk mode edit:
-
-```
-i
-```
-
-Simpan & keluar:
-
-```
-Esc
-:wq
-```
-
-Keluar tanpa simpan:
-
-```
-Esc
-:q!
-```
-
----
-
-# 🔍 9. Debugging & Log Error
-
-### Melihat Log Laravel
-
-```bash
-docker compose exec project-bdn-karanganyar tail -n 100 storage/logs/laravel.log
-```
-
-### Melihat Log Laravel ERROR
-
-```bash
-docker compose exec project-bdn-karanganyar grep "local.ERROR" storage/logs/laravel.log | tail -n 3
-```
-
-### Melihat Log Container
-
-```bash
+# Melihat log semua container secara realtime
 docker compose logs -f
-```
 
-### Log Nginx
-
-```bash
+# Melihat log khusus Nginx (Web Server)
 docker compose logs -f nginx
-```
 
-### Log Database
-
-```bash
+# Melihat log khusus Database (MySQL)
 docker compose logs -f db
 ```
 
----
-
-# 🧼 10. Maintenance Docker (Disk & Cache)
-
-Membersihkan container, network, dan cache tidak terpakai:
-
+### Log Aplikasi Laravel
 ```bash
-docker system prune -f
+# Melihat 100 baris terakhir dari log Laravel
+docker compose exec project-bdn-karanganyar tail -n 100 storage/logs/laravel.log
+
+# Mencari pesan ERROR spesifik di log Laravel
+docker compose exec project-bdn-karanganyar grep "local.ERROR" storage/logs/laravel.log | tail -n 3
 ```
 
-Membersihkan semua image tidak terpakai:
+---
 
+## 🧹 BAGIAN 5: BERSIH-BERSIH & RESET (Teardown)
+*Hati-hati! Bagian ini digunakan untuk menghapus container jika project sudah selesai atau ingin direset total.*
+
+### Mematikan & Menghapus Project
 ```bash
+# AMAN: Hapus container, tapi database dan image tetap utuh
+docker compose down --remove-orphans
+
+# RESET DB: Hapus container beserta volume (Database akan kosong total!)
+docker compose down -v
+
+# RESET TOTAL: Hapus container dan semua image Docker project ini
+docker compose down --rmi all
+```
+
+### Membersihkan Sampah Docker (Hemat Disk)
+```bash
+# Hapus cache, network, dan container yang tidak terpakai
+docker system prune -f
+
+# Hapus semua image yang tidak digunakan oleh container manapun
 docker image prune -a
 ```
 
 ---
 
-# 🧠 11. Reset RAM WSL2 (Jika Docker Berat)
+## ⚙️ BAGIAN 6: KHUSUS PENGGUNA WSL2 (Windows) & LINUX
+*Tips optimasi OS untuk menunjang Docker.*
 
-Jalankan di **PowerShell Windows**:
-
+### Mengatasi Docker/WSL2 Bikin RAM Penuh (Jalankan di PowerShell Windows)
 ```powershell
+# Matikan WSL secara paksa untuk melepaskan RAM yang tertahan
 wsl --shutdown
 ```
 
-*(Semua distro WSL2 dimatikan dan RAM akan dilepaskan kembali).*
-
----
-
-# 🖥️ 12. Stop / Start Service Docker (Linux Server)
-
-Stop Docker:
-
-```bash
-sudo service docker stop
-```
-
-Start Docker:
-
-```bash
-sudo service docker start
-```
-
----
-
-# 🌐 13. Informasi Konfigurasi Project
-
-### URL Website
-
-```
-http://localhost:8081
-```
-
-### Database
-
-```
-Host : 127.0.0.1
-Port : 3306
-User : root
-Pass : root
-```
-
----
-
-# ⚡ 14. Konfigurasi RAM WSL2 (Opsional)
-
-Lokasi file konfigurasi:
-
-```
-%UserProfile%\.wslconfig
-```
-
-Contoh konfigurasi:
-
+### Membatasi RAM untuk WSL2
+*Buat atau edit file `%UserProfile%\.wslconfig` di Windows Anda, lalu isi dengan:*
 ```ini
 [wsl2]
 memory=3GB
 processors=2
 swap=2GB
 ```
+*(Wajib restart WSL / PC setelah menambahkan file ini).*
 
-*(Disarankan untuk development Docker + Laravel agar Windows tidak kehabisan RAM).*
+### Restart Engine Docker (Di Linux Host / WSL2 Terminal)
+```bash
+sudo service docker stop
+sudo service docker start
+```
+
+### Edit File Cepat di Terminal Server (Nano)
+```bash
+nano .env
+
+# Cara Simpan: Tekan 'Ctrl + O', lalu 'Enter'
+# Cara Keluar: Tekan 'Ctrl + X'
+```
