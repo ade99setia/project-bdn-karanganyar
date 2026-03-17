@@ -21,7 +21,7 @@ sudo ufw allow 443
 sudo ufw enable
 
 # Buat folder penampungan project
-mkdir -p ~/server-hosting/projects
+mkdir -p ~/server-hosting/
 ```
 
 ### 2. Instalasi Docker Engine
@@ -88,41 +88,65 @@ sudo systemctl start cloudflared
 
 ### 1. Kloning Proyek & Jalankan Docker
 ```bash
-cd ~/server-hosting/projects
+cd ~/server-hosting/
 
 # Clone dari Git (Ganti dengan link repo GitHub Anda)
-git clone <URL-REPO-GITHUB-ANDA> nama-project-baru
-cd nama-project-baru
+git clone <URL-REPO-GITHUB-ANDA> project-bdn-karanganyar
+cd project-bdn-karanganyar
 
 # Jalankan container (Nginx, MySQL, App, dll)
 docker compose up -d
 ```
 
 ### 2. Setup Laravel & Atasi Hak Akses (Permission)
+
+*a. Setting ENV terlebih dahulu*
+```bash
+cp .env.example .env
+nano .env
+```
+
+*b. Sesuaikan APP_URL*
+```bash
+APP_URL=http://localhost:8001
+```
+
+*b. Sesuaikan konfigurasi Database*
+```bash
+DB_CONNECTION=mysql
+DB_HOST=bdn_karanganyar_db
+DB_PORT=3306
+DB_DATABASE=bdn_karanganyar_db
+DB_USERNAME=root
+DB_PASSWORD=root
+```
+
+*c. Install Composer dan NPM Install*
 ```bash
 # Beri hak tulis sementara ke folder project agar Docker bisa bekerja (mencegah error permission)
-sudo chmod -R 777 ~/server-hosting/projects/nama-project-baru
+sudo chmod -R 777 ~/server-hosting/project-bdn-karanganyar
 
 # Install PHP Library (Composer) & Generate Key 
-# Catatan: Ganti 'nama-container-app' dengan nama container Laravel Anda (bisa dicek dengan `docker ps`)
-docker compose exec nama-container-app composer install
-docker compose exec nama-container-app php artisan key:generate
+# Catatan: Ganti 'bdn_karanganyar_app' dengan nama container Laravel Anda (bisa dicek dengan `docker ps`)
+docker compose exec bdn_karanganyar_app composer install
+docker compose exec bdn_karanganyar_app php artisan key:generate
+docker compose exec bdn_karanganyar_app php artisan migrate
 
 # Build Frontend (Vite/Node.js) untuk memproses file CSS/JS agar tidak error 404
-docker compose exec nama-container-app npm install
-docker compose exec nama-container-app npm run build
+docker compose exec bdn_karanganyar_app npm install
+docker compose exec bdn_karanganyar_app npm run build
 
 # Kunci kembali hak akses khusus folder storage dan cache (Syarat wajib Laravel, mencegah Error 500)
-sudo chmod -R 777 ~/server-hosting/projects/nama-project-baru/storage
-sudo chmod -R 777 ~/server-hosting/projects/nama-project-baru/bootstrap/cache
+sudo chmod -R 777 ~/server-hosting/project-bdn-karanganyar/storage
+sudo chmod -R 777 ~/server-hosting/project-bdn-karanganyar/bootstrap/cache
 ```
 
 ### 3. Daftarkan Domain Baru ke Tunnel
-*Misalnya web baru ini ingin diakses di `app.domainanda.com` dan berjalan di port lokal `8082`.*
+*Misalnya web baru ini ingin diakses di `bdn.ade-setiawan.my.id` dan berjalan di port lokal `8081`.*
 
 **A. Tambahkan Route DNS (Tembak domain ke Tunnel):**
 ```bash
-cloudflared tunnel route dns idn-server app.domainanda.com
+cloudflared tunnel route dns idn-server bdn.ade-setiawan.my.id
 ```
 
 **B. Tambahkan Rute ke Config Tunnel:**
@@ -137,8 +161,8 @@ credentials-file: /etc/cloudflared/<MASUKKAN-ID-TUNNEL-DI-SINI>.json
 
 ingress:
   # -> TAMBAHKAN PROJECT BARU DI SINI <-
-  - hostname: app.domainanda.com
-    service: http://localhost:8082
+  - hostname: bdn.ade-setiawan.my.id
+    service: http://localhost:8081
 
   # Catch-all (Biarkan di paling bawah)
   - service: http_status:404
