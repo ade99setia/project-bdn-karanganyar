@@ -3,6 +3,24 @@ Panduan terstruktur untuk menjalankan project Laravel menggunakan Docker.
 
 ---
 
+## 🎯 BAGIAN 0: RESET SEMUA CONTAINER VOLUME IMAGE DOCKER
+*Lakukan langkah ini DENGAN HATI-HATI.*
+
+```bash
+# Hentikan semua container yang sedang berjalan
+docker compose down -v
+
+# Hapus semua volume yang ada (semua database & data container lain)
+docker volume prune -f
+
+# Hapus semua image yang tidak aktif (optional, supaya storage bersih)
+docker image prune -a -f
+
+# Build dan jalankan ulang proyek
+docker compose build
+docker compose up -d
+```
+
 ## 🎯 BAGIAN 1: SETUP PERTAMA KALI (Inisialisasi)
 *Lakukan langkah ini HANYA saat pertama kali mengkloning project atau setup di PC baru.*
 
