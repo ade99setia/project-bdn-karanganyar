@@ -26,3 +26,9 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+android
+icons
+tests
+*.zip
+*.tar
+*.tar.gz

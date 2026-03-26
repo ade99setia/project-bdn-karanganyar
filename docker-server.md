@@ -108,7 +108,7 @@ nano .env
 
 *b. Sesuaikan APP_URL*
 ```bash
-APP_URL=http://localhost:8001
+APP_URL=http://localhost:8081
 ```
 
 *b. Sesuaikan konfigurasi Database*

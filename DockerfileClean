@@ -1,0 +1,76 @@
+# ========================
+# Stage 1: Base
+# ========================
+FROM php:8.3-fpm-alpine AS base
+
+RUN apk add --no-cache \
+    zip unzip curl nodejs npm mysql-client git bash \
+    libpng-dev libzip-dev icu-dev libxml2-dev
+
+RUN docker-php-ext-install pdo pdo_mysql bcmath gd intl zip
+
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+WORKDIR /var/www/html
+
+# ========================
+# Stage 2: Vendor
+# ========================
+FROM base AS vendor
+
+COPY composer.json composer.lock ./
+RUN composer install \
+    --no-interaction \
+    --prefer-dist \
+    --optimize-autoloader \
+    --no-dev \
+    --no-scripts
+
+# ========================
+# Stage 3: Assets
+# ========================
+FROM base AS assets
+
+COPY --from=vendor /var/www/html/vendor ./vendor
+COPY . .
+
+RUN mkdir -p bootstrap/cache \
+    storage/framework/cache \
+    storage/framework/sessions \
+    storage/framework/views \
+    && chmod -R 775 bootstrap/cache storage
+
+RUN npm install
+RUN npm run build
+
+# ... (Stage 1 sampai 3 sudah Oke) ...
+
+# ========================
+# Stage 4: Final
+# ========================
+FROM base AS final
+
+COPY --from=vendor /var/www/html/vendor ./vendor
+COPY --from=assets /var/www/html/public/build ./public/build
+COPY . .
+
+# Hapus file .env bawaan agar Laravel terpaksa membaca Environment Variables dari Docker
+RUN rm -f .env
+
+# Fix permissions & folder structure
+RUN mkdir -p bootstrap/cache \
+    storage/framework/cache \
+    storage/framework/sessions \
+    storage/framework/views \
+    && chown -R www-data:www-data /var/www/html \
+    && chmod -R 775 bootstrap/cache storage
+
+# PENTING: Jangan jalankan 'artisan config:clear' di sini (saat build), 
+# karena ENV docker belum tersedia saat build time.
+
+USER www-data
+
+EXPOSE 9000
+
+# Gunakan config:clear saat container nyala agar fresh membaca env dari docker-compose
+CMD ["sh", "-c", "php artisan config:clear && php artisan package:discover --ansi && php-fpm"]

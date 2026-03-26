@@ -1,8 +1,39 @@
-node_modules
-vendor
-storage
-bootstrap/cache
-public/build
+# =========================
+# Dependency folders - DIBUKA agar editan manual ikut tercopy
+# =========================
+# node_modules
+# vendor
+
+android
+icons
+tests
+
+# =========================
+# Laravel specific - LOCK sampah cache
+# =========================
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*.php
+storage/logs/*.log
+bootstrap/cache/*
+# public/build  <-- buka ini jika kamu sudah 'npm run build' di local
+
+# =========================
+# Version control & OS files
+# =========================
 .git
-.env
+.gitattributes
+.gitignore
 .DS_Store
+Thumbs.db
+
+# =========================
+# Environment & IDE
+# =========================
+.env
+.idea
+.vscode
+
+*.zip
+*.tar
+*.tar.gz

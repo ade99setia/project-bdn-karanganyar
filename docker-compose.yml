@@ -1,65 +1,64 @@
 services:
-  # 1. Nginx Web Server
-  bdn_karanganyar_web:
+  # =========================
+  # App: PHP-FPM Laravel
+  # =========================
+  app_bdn_karanganyar:
+    image: ghcr.io/ade99setia/bdn_karanganyar_app:latest
+    container_name: bdn_karanganyar_app
+    env_file:
+      - ./.env
+    volumes:
+      - public_app:/var/www/html/public
+      - storage_app:/var/www/html/storage
+    networks:
+      - app_network_bdn_karanganyar
+    restart: unless-stopped
+
+  # =========================
+  # Web: Nginx
+  # =========================
+  web_bdn_karanganyar:
     image: nginx:alpine
     container_name: bdn_karanganyar_web
     ports:
-      - "8081:80"
+      - "8081:80"  # akses localhost:8081
     volumes:
       - ./default.conf:/etc/nginx/conf.d/default.conf
-      - ./html:/var/www/html
+      - public_app:/var/www/html/public  # <- Nginx baca public folder dari app
     depends_on:
-      - bdn_karanganyar_app
+      - app_bdn_karanganyar
     networks:
-      - bdn_karanganyar_network
+      - app_network_bdn_karanganyar
+      - shared_web_network
     restart: unless-stopped
 
-  # 2. PHP-FPM Application
-  bdn_karanganyar_app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: bdn_karanganyar_app
-    volumes:
-      - ./html:/var/www/html
-    depends_on:
-      - bdn_karanganyar_db
-    environment:
-      APP_ENV: local
-      APP_DEBUG: "true"
-      DB_CONNECTION: mysql
-      DB_HOST: bdn_karanganyar_db
-      DB_PORT: 3306
-      DB_DATABASE: bdn_karanganyar_db
-      DB_USERNAME: root
-      DB_PASSWORD: root
-    networks:
-      - bdn_karanganyar_network
-    restart: unless-stopped
-
-  # 3. MySQL Database
-  bdn_karanganyar_db:
+  # =========================
+  # Database: MySQL
+  # =========================
+  db_bdn_karanganyar:
     image: mysql:8.0
     container_name: bdn_karanganyar_db
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: bdn_karanganyar_db
-    ports:
-      - "3306:3306"
+      MYSQL_USER: bdn_user
+      MYSQL_PASSWORD: strongpassword123
     volumes:
-      - bdn_karanganyar_db_data:/var/lib/mysql
+      - db_data:/var/lib/mysql
     networks:
-      - bdn_karanganyar_network
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "-proot"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+      - app_network_bdn_karanganyar
     restart: unless-stopped
 
+# =========================
+# Networks & Volumes
+# =========================
 networks:
-  bdn_karanganyar_network:
+  app_network_bdn_karanganyar:
     driver: bridge
+  shared_web_network:
+    external: true
 
 volumes:
-  bdn_karanganyar_db_data:
+  public_app:
+  storage_app:
+  db_data:
