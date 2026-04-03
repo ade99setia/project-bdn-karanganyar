@@ -12,6 +12,7 @@ services:
       - storage_app:/var/www/html/storage
     networks:
       - app_network_bdn_karanganyar
+      - shared_web_network
     restart: unless-stopped
 
   # =========================
@@ -40,7 +41,7 @@ services:
     container_name: bdn_karanganyar_db
     environment:
       MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: bdn_karanganyar_db
+      MYSQL_DATABASE: bdn_karanganyar
       MYSQL_USER: bdn_user
       MYSQL_PASSWORD: strongpassword123
     volumes:

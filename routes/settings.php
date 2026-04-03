@@ -7,6 +7,7 @@ use App\Http\Controllers\Settings\UserManagementController;
 use App\Http\Controllers\Settings\ProductManagementController;
 use App\Http\Controllers\Settings\NotificationManagementController;
 use App\Http\Controllers\Settings\StockistManagementController;
+use App\Http\Controllers\Settings\WhatsappBlastingController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -75,6 +76,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::redirect('settings/notifications', '/settings/announcements');
     Route::get('settings/announcements', [NotificationManagementController::class, 'index'])
         ->name('settings.announcements.index');
+
+    // WhatsApp Blasting Routes
+    Route::get('settings/whatsapp-blasting', [WhatsappBlastingController::class, 'index'])
+        ->name('settings.whatsapp-blasting.index');
+    Route::post('settings/whatsapp-blasting/send', [WhatsappBlastingController::class, 'sendTargeted'])
+        ->name('settings.whatsapp-blasting.send');
 
     // Stockist Management Routes
     Route::get('settings/stockist', [StockistManagementController::class, 'index'])

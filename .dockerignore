@@ -1,7 +1,10 @@
 # =========================
 # Dependency folders - DIBUKA agar editan manual ikut tercopy
 # =========================
-# node_modules
+# hanya dipakai di development, tidak perlu di-copy ke image production
+node_modules
+
+# Dipakai di image production
 # vendor
 
 android
@@ -16,7 +19,7 @@ storage/framework/sessions/*
 storage/framework/views/*.php
 storage/logs/*.log
 bootstrap/cache/*
-# public/build  <-- buka ini jika kamu sudah 'npm run build' di local
+public
 
 # =========================
 # Version control & OS files

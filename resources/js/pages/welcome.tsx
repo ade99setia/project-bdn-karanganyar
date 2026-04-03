@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { Head, Link, usePage } from '@inertiajs/react';
+import axios from 'axios';
 import { useState } from 'react';
 import AlertModal from '@/components/modal/alert-modal';
 import { login, register } from '@/routes';
@@ -87,6 +88,26 @@ export default function Welcome({
 
         setShowClearConfirm(true);
     }
+
+    const [loading, setLoading] = useState(false);
+
+    const handleSendWA = async (e: React.MouseEvent) => {
+        e.preventDefault();
+        setLoading(true);
+
+        try {
+            const response = await axios.post('/whatsapp/send');
+
+            if (response.data.success) {
+                alert('🔥 Berhasil: ' + response.data.message);
+            }
+        } catch (error: unknown) {
+            console.error("Detail Error:", (error as { response?: { data: unknown } }).response?.data);
+            alert('❌ Gagal kirim WA. Cek console log.');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <>
@@ -225,6 +246,17 @@ export default function Welcome({
                                     >
                                         Deploy now
                                     </a>
+                                </li>
+                                <li>
+                                    <button
+                                        onClick={handleSendWA}
+                                        disabled={loading}
+                                        className={`inline-block cursor-pointer rounded-sm border border-black px-5 py-1.5 text-sm leading-normal text-white transition-all 
+            ${loading ? 'opacity-50 cursor-not-allowed bg-gray-500' : 'bg-[#1b1b18] hover:bg-black'} 
+            dark:border-[#eeeeec] dark:bg-[#eeeeec] dark:text-[#1C1C1A] dark:hover:bg-white`}
+                                    >
+                                        {loading ? 'Sending...' : 'Send WhatsApp'}
+                                    </button>
                                 </li>
                             </ul>
                         </div>

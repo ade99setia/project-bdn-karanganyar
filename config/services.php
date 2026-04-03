@@ -48,5 +48,11 @@ return [
         'server_key' => env('FCM_SERVER_KEY'),
         'send_url' => env('FCM_SEND_URL', 'https://fcm.googleapis.com/fcm/send'),
     ],
+        
+    'evolution' => [
+        'base_url' => env('EVOLUTION_API_BASE_URL', 'http://evolution_api:8080'),
+        'instance' => env('EVOLUTION_API_INSTANCE_NAME'),
+        'api_key'  => env('EVOLUTION_API_KEY'),
+    ],
 
 ];

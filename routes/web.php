@@ -17,6 +17,9 @@ use App\Http\Controllers\SalesController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\NotificationController;
 use Laravel\Fortify\Http\Controllers\TwoFactorAuthenticatedSessionController;
+use App\Http\Controllers\WhatsappController;
+
+Route::post('/whatsapp/send', [WhatsappController::class, 'send'])->name('whatsapp.send');
 
 Route::get('/', function () {
     return Inertia::render('welcome', [

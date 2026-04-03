@@ -15,6 +15,8 @@ interface NotificationPreview {
     title: string;
     message: string;
     priority: 'low' | 'normal' | 'high';
+    attachmentLabels?: string[];
+    attachmentModeLabel?: string | null;
     recipients: NotificationRecipient[];
 }
 
@@ -87,6 +89,18 @@ export default function ConfirmNotificationModal({
                             <div className="text-xs uppercase text-zinc-400 dark:text-zinc-500">Isi Notifikasi</div>
                             <div className="font-medium whitespace-pre-line">{notificationPreview.message || '—'}</div>
                         </div>
+
+                        {notificationPreview.attachmentLabels && notificationPreview.attachmentLabels.length > 0 ? (
+                            <div>
+                                <div className="text-xs uppercase text-zinc-400 dark:text-zinc-500">Lampiran</div>
+                                <div className="space-y-1">
+                                    {notificationPreview.attachmentModeLabel ? (
+                                        <div className="text-xs text-zinc-500 dark:text-zinc-400">{notificationPreview.attachmentModeLabel}</div>
+                                    ) : null}
+                                    <div className="font-medium">{notificationPreview.attachmentLabels.join(', ')}</div>
+                                </div>
+                            </div>
+                        ) : null}
 
                         <div>
                             <div className="flex items-center justify-between gap-3">

@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { Link, usePage } from '@inertiajs/react';
-import { PhoneCall, LayoutGrid, MonitorCheck, RefreshCcwDot, Headset, LibraryBig, CalendarDays, Warehouse, Package, Users, Bell } from 'lucide-react';
+import { PhoneCall, LayoutGrid, MonitorCheck, RefreshCcwDot, Headset, LibraryBig, CalendarDays, Warehouse, Package, Users, Bell, MessageCircleMore } from 'lucide-react';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -91,6 +91,11 @@ export function AppSidebar() {
                     title: 'Announcements',
                     href: '/settings/announcements',
                     icon: Bell,
+                },
+                {
+                    title: 'WhatsApp Blasting',
+                    href: '/settings/whatsapp-blasting',
+                    icon: MessageCircleMore,
                 },
                 {
                     title: 'Stockist',
