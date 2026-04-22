@@ -25,7 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
         $middleware->validateCsrfTokens(except: [
-            'api/webhook/wa*',
+            'api/webhook/evolution/M3zKJc2YQWf8sL7G1B0xE4tH9RdaUuVw6iP5AyrnDkXhSCTbFvNjZpOlImeqg*',
         ]);
         
         $middleware->alias([

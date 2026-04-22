@@ -8,5 +8,5 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 
 use App\Http\Controllers\Api\WhatsappWebhookController;
-Route::post('/webhook/wa/{any?}', [WhatsappWebhookController::class, 'handle'])
+Route::post('/webhook/evolution/M3zKJc2YQWf8sL7G1B0xE4tH9RdaUuVw6iP5AyrnDkXhSCTbFvNjZpOlImeqg/{any?}', [WhatsappWebhookController::class, 'handle'])
     ->where('any', '.*');

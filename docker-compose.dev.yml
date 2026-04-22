@@ -1,0 +1,80 @@
+services:
+  # =========================
+  # App: PHP-FPM Laravel (Dev)
+  # =========================
+  app_bdn_karanganyar_dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev # Gunakan Dockerfile dev
+    container_name: bdn_karanganyar_app_dev
+    env_file:
+      - ./.env
+    volumes:
+      - .:/var/www/html # BIND MOUNT: Folder saat ini disambung langsung ke dalam docker
+    # Otomatis install composer dependencies dan jalankan php-fpm saat container up  
+    command: sh -c "composer install && php-fpm"  
+    networks:
+      - app_network_bdn_karanganyar_dev
+
+  # =========================
+  # Vite / Node (Untuk npm run dev)
+  # =========================
+  vite_bdn_karanganyar:
+    build:
+      context: .
+      dockerfile: Dockerfile.vite # Dockerfile khusus untuk Vite
+    container_name: bdn_karanganyar_dev_vite
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+    ports:
+      - "5173:5173" # Port default Vite
+      # Otomatis install NPM dan jalankan Vite saat container up
+    command: sh -c "npm install && npm run dev"
+    networks:
+      - app_network_bdn_karanganyar_dev
+
+  # =========================
+  # Web: Nginx
+  # =========================
+  web_bdn_karanganyar_dev:
+    image: nginx:alpine
+    container_name: bdn_karanganyar_web_dev
+    ports:
+      - "18081:80"  # Akses web di port 5 digit (http://10.159.76.115:18081)
+    volumes:
+      - ./default.dev.conf:/etc/nginx/conf.d/default.conf
+      - .:/var/www/html  # Nginx juga butuh akses ke seluruh project untuk dev
+    depends_on:
+      - app_bdn_karanganyar_dev
+    networks:
+      - app_network_bdn_karanganyar_dev
+
+  # =========================
+  # Database: MySQL
+  # =========================
+
+  db_bdn_karanganyar_dev:
+    image: mysql:8.0
+    container_name: bdn_karanganyar_db_dev
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: bdn_karanganyar
+      MYSQL_USER: bdn_karanganyar_user
+      MYSQL_PASSWORD: strongpassword123
+    ports:
+      - "3331:3306"
+    volumes:
+      - db_data_dev:/var/lib/mysql
+    networks:
+      - app_network_bdn_karanganyar_dev
+
+# =========================
+# Networks & Volumes
+# =========================
+networks:
+  app_network_bdn_karanganyar_dev:
+    driver: bridge
+
+volumes:
+  db_data_dev: # Cukup DB saja yang pakai named volume di dev

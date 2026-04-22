@@ -1,0 +1,18 @@
+# Dockerfile.dev
+FROM php:8.3-fpm-alpine
+
+# Install sistem dependencies
+RUN apk add --no-cache \
+    bash curl git libpng-dev libzip-dev icu-dev libxml2-dev \
+    zlib-dev oniguruma-dev mariadb-connector-c-dev make autoconf g++ gcc musl-dev
+
+# PHP extensions
+RUN docker-php-ext-install mysqli pdo pdo_mysql intl zip gd
+
+# Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+WORKDIR /var/www/html
+
+EXPOSE 9000
+CMD ["php-fpm"]

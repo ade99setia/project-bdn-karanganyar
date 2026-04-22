@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "c02d01a84a0f2d6433b643a4edb2aa27",
+    "content-hash": "eae22e33576ec488129f5a3811489e39",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -1290,17 +1290,11 @@
         },
         {
             "name": "laravel/fortify",
-            "version": "v1.34.0",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/laravel/fortify.git",
-                "reference": "c322715f2786210a722ed56966f7c9877b653b25"
-            },
+            "version": "dev-main",
             "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/laravel/fortify/zipball/c322715f2786210a722ed56966f7c9877b653b25",
-                "reference": "c322715f2786210a722ed56966f7c9877b653b25",
-                "shasum": ""
+                "type": "path",
+                "url": "./packages/fortify",
+                "reference": "2220b7e05e77a7842650270df240f1b5f0345e06"
             },
             "require": {
                 "bacon/bacon-qr-code": "^3.0",
@@ -1316,13 +1310,13 @@
             },
             "type": "library",
             "extra": {
+                "branch-alias": {
+                    "dev-master": "1.x-dev"
+                },
                 "laravel": {
                     "providers": [
                         "Laravel\\Fortify\\FortifyServiceProvider"
                     ]
-                },
-                "branch-alias": {
-                    "dev-master": "1.x-dev"
                 }
             },
             "autoload": {
@@ -1330,7 +1324,30 @@
                     "Laravel\\Fortify\\": "src/"
                 }
             },
-            "notification-url": "https://packagist.org/downloads/",
+            "autoload-dev": {
+                "psr-4": {
+                    "Laravel\\Fortify\\Tests\\": "tests/",
+                    "App\\": "workbench/app/",
+                    "Database\\Factories\\": "workbench/database/factories/"
+                },
+                "classmap": [
+                    "stubs/"
+                ]
+            },
+            "scripts": {
+                "post-autoload-dump": [
+                    "@prepare"
+                ],
+                "prepare": [
+                    "@php vendor/bin/testbench package:discover --ansi"
+                ],
+                "lint": [
+                    "@php vendor/bin/phpstan analyse"
+                ],
+                "test": [
+                    "@php vendor/bin/phpunit"
+                ]
+            },
             "license": [
                 "MIT"
             ],
@@ -1349,7 +1366,10 @@
                 "issues": "https://github.com/laravel/fortify/issues",
                 "source": "https://github.com/laravel/fortify"
             },
-            "time": "2026-01-26T10:23:19+00:00"
+            "transport-options": {
+                "symlink": true,
+                "relative": true
+            }
         },
         {
             "name": "laravel/framework",
@@ -9967,7 +9987,7 @@
         }
     ],
     "aliases": [],
-    "minimum-stability": "stable",
+    "minimum-stability": "dev",
     "stability-flags": {},
     "prefer-stable": true,
     "prefer-lowest": false,
