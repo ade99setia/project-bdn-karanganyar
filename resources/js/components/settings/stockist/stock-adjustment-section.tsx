@@ -9,6 +9,7 @@ interface Props {
     warehouses: Warehouse[];
     products: Product[];
     stocks: Pagination<ProductStockRow>;
+    allStocks: Array<{ product_id: number; warehouse_id: number; quantity: number }>;
     salesUsers: SalesUser[];
     selectableSalesUsers: SalesUser[];
     stockAdjustForm: StockAdjustForm;
@@ -27,6 +28,7 @@ export default function StockAdjustmentSection({
     warehouses,
     products,
     stocks,
+    allStocks,
     salesUsers,
     selectableSalesUsers,
     stockAdjustForm,
@@ -42,8 +44,10 @@ export default function StockAdjustmentSection({
 }: Props) {
     const selectedWarehouseId = stockAdjustForm.warehouse_id ? Number(stockAdjustForm.warehouse_id) : null;
     const selectedProductId = stockAdjustForm.product_id ? Number(stockAdjustForm.product_id) : null;
+    
+    // Use allStocks instead of paginated stocks.data
     const selectedStock = (selectedProductId && selectedWarehouseId)
-        ? (stocks.data.find((s) => Number(s.product.id) === selectedProductId && Number(s.warehouse.id) === selectedWarehouseId)?.quantity ?? 0)
+        ? (allStocks.find((s) => s.product_id === selectedProductId && s.warehouse_id === selectedWarehouseId)?.quantity ?? 0)
         : null;
 
     const reservedOutQuantity = stockAdjustLines.reduce((total, line) => total + Number(line.quantity || 0), 0);
@@ -73,8 +77,9 @@ export default function StockAdjustmentSection({
                         const productsWithStock = (products as Product[]).map((p) => {
                             let stockForWarehouse: number | null = null;
                             if (selectedWarehouseId) {
-                                const match = stocks.data.find((s) => String(s.product.id) === String(p.id) && String(s.warehouse.id) === String(selectedWarehouseId));
-                                if (match) stockForWarehouse = Number(match.quantity);
+                                // Use allStocks instead of paginated stocks.data
+                                const match = allStocks.find((s) => s.product_id === p.id && s.warehouse_id === selectedWarehouseId);
+                                if (match) stockForWarehouse = match.quantity;
                             }
                             return ({ ...(p as Product), stock_quantity: typeof stockForWarehouse === 'number' ? stockForWarehouse : 0 } as Product & { stock_quantity: number });
                         });

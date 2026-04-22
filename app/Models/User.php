@@ -128,4 +128,19 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(UserDeviceToken::class);
     }
 
+    public function member()
+    {
+        return $this->hasOne(Member::class);
+    }
+
+    public function posTransactions()
+    {
+        return $this->hasMany(PosTransaction::class, 'cashier_id');
+    }
+
+    public function cashierShifts()
+    {
+        return $this->hasMany(CashierShift::class, 'cashier_id');
+    }
+
 }

@@ -286,9 +286,10 @@ export default function VisitInputModal({
                 onClose={closeBarcodeScanner}
                 onDetected={handleBarcodeDetected}
                 title="Scan Barcode"
-                subtitle="Arahkan barcode SKU ke area kamera"
-                notFoundMessage="Produk tidak ditemukan"
+                subtitle="Arahkan barcode SKU ke kamera — terus scan sampai produk ditemukan"
+                notFoundMessage="Produk tidak ditemukan, coba scan ulang..."
                 requiredDetections={1}
+                activeDurationSeconds={30}
                 barcodeFormats={scannerFormats}
                 warmupMs={500}
             />

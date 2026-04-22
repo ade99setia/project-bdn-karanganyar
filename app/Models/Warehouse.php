@@ -29,4 +29,14 @@ class Warehouse extends Model
     {
         return $this->hasMany(StockMovement::class);
     }
+
+    public function posTransactions()
+    {
+        return $this->hasMany(PosTransaction::class);
+    }
+
+    public function cashierShifts()
+    {
+        return $this->hasMany(CashierShift::class);
+    }
 }

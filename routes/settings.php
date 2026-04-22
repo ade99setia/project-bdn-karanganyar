@@ -8,6 +8,7 @@ use App\Http\Controllers\Settings\ProductManagementController;
 use App\Http\Controllers\Settings\NotificationManagementController;
 use App\Http\Controllers\Settings\StockistManagementController;
 use App\Http\Controllers\Settings\WhatsappBlastingController;
+use App\Http\Controllers\Settings\MembershipController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -94,4 +95,34 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('settings.warehouses.destroy');
     Route::post('settings/stocks/adjust', [StockistManagementController::class, 'adjustStock'])
         ->name('settings.stocks.adjust');
+
+    // Membership Management Routes
+    Route::get('settings/membership', [MembershipController::class, 'index'])
+        ->name('settings.membership.index');
+    
+    // Membership Tiers
+    Route::post('settings/membership/tiers', [MembershipController::class, 'storeTier'])
+        ->name('settings.membership.tiers.store');
+    Route::put('settings/membership/tiers/{tier}', [MembershipController::class, 'updateTier'])
+        ->name('settings.membership.tiers.update');
+    Route::delete('settings/membership/tiers/{tier}', [MembershipController::class, 'destroyTier'])
+        ->name('settings.membership.tiers.destroy');
+    
+    // Product Discounts
+    Route::get('settings/membership/tiers/{tier}/discounts', [MembershipController::class, 'indexProductDiscounts'])
+        ->name('settings.membership.discounts.index');
+    Route::post('settings/membership/discounts', [MembershipController::class, 'storeProductDiscount'])
+        ->name('settings.membership.discounts.store');
+    Route::delete('settings/membership/discounts/{discount}', [MembershipController::class, 'destroyProductDiscount'])
+        ->name('settings.membership.discounts.destroy');
+    
+    // Members
+    Route::post('settings/membership/members', [MembershipController::class, 'storeMember'])
+        ->name('settings.membership.members.store');
+    Route::put('settings/membership/members/{member}', [MembershipController::class, 'updateMember'])
+        ->name('settings.membership.members.update');
+    Route::delete('settings/membership/members/{member}', [MembershipController::class, 'destroyMember'])
+        ->name('settings.membership.members.destroy');
+    Route::get('settings/membership/members/search', [MembershipController::class, 'searchMembers'])
+        ->name('settings.membership.members.search');
 });

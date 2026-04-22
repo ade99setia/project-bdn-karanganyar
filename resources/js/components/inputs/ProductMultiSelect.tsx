@@ -18,9 +18,10 @@ interface Props {
     placeholder?: string;
     onPreviewImage?: (url: string) => void;
     onQueryChange?: (q: string) => void;
+    onFocus?: () => void;
 }
 
-export default function ProductMultiSelect({ items, value, onChange, label, placeholder = 'Cari...', onPreviewImage, onQueryChange }: Props) {
+export default function ProductMultiSelect({ items, value, onChange, label, placeholder = 'Cari...', onPreviewImage, onQueryChange, onFocus }: Props) {
     const [query, setQuery] = useState('');
     const [showResults, setShowResults] = useState(false);
     const rootRef = useRef<HTMLDivElement | null>(null);
@@ -113,7 +114,7 @@ export default function ProductMultiSelect({ items, value, onChange, label, plac
                             type="text"
                             value={query}
                             onChange={(e) => { setQuery(e.target.value); setShowResults(true); if (typeof (onQueryChange) === 'function') onQueryChange(e.target.value); }}
-                            onFocus={() => setShowResults(true)}
+                            onFocus={() => { setShowResults(true); if (typeof onFocus === 'function') onFocus(); }}
                             className="flex-1 self-center h-8 leading-8 bg-transparent outline-none min-w-0 text-sm"
                             style={{ minWidth: 120 }}
                         />

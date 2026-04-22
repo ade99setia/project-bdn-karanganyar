@@ -28,6 +28,8 @@ class StockistManagementController extends Controller
 
         $stocksQuery = ProductStock::query()
             ->with(['product:id,name,sku,category,file_path', 'warehouse:id,name,code,file_path'])
+            ->whereHas('product')  // Only show stocks where product exists
+            ->whereHas('warehouse')  // Only show stocks where warehouse exists
             ->when($warehouseId, fn($query) => $query->where('warehouse_id', $warehouseId))
             ->when($search !== '', function ($query) use ($search) {
                 $query->whereHas('product', function ($productQuery) use ($search) {
@@ -36,8 +38,8 @@ class StockistManagementController extends Controller
                         ->orWhere('category', 'like', "%{$search}%");
                 });
             })
-            ->orderBy('warehouse_id')
-            ->orderBy('product_id');
+            ->orderBy('product_id')  // Changed: Sort by product first, then warehouse
+            ->orderBy('warehouse_id');
 
         $stocks = $stocksQuery->paginate($perPage)->appends($request->query());
 
@@ -95,8 +97,23 @@ class StockistManagementController extends Controller
             })
             ->values();
 
+        // Get all stocks (unpaginated) for stock adjustment form
+        $allStocks = ProductStock::query()
+            ->with(['product:id,name,sku', 'warehouse:id,name,code'])
+            ->whereHas('product')
+            ->whereHas('warehouse')
+            ->get()
+            ->map(function ($stock) {
+                return [
+                    'product_id' => $stock->product_id,
+                    'warehouse_id' => $stock->warehouse_id,
+                    'quantity' => $stock->quantity,
+                ];
+            });
+
         return Inertia::render('settings/stockist', [
             'stocks' => $stocks,
+            'allStocks' => $allStocks,  // Add unpaginated stocks for adjustment form
             'movements' => $movements,
             'salesStockSummaries' => $salesStockSummaries,
             'products' => Product::query()

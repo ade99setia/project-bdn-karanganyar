@@ -49,4 +49,14 @@ class Product extends Model
     {
         return $this->hasMany(SalesProductStock::class);
     }
+
+    public function posTransactionItems()
+    {
+        return $this->hasMany(PosTransactionItem::class);
+    }
+
+    public function membershipTierProductDiscounts()
+    {
+        return $this->hasMany(MembershipTierProductDiscount::class);
+    }
 }

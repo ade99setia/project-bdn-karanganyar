@@ -21,14 +21,14 @@ export default defineConfig({
             formVariants: true,
         }),
     ],
-    server: {
-        host: '0.0.0.0',
-        port: 5173,
-        cors: true,
-        hmr: {
-            host: '10.42.0.1',
-        },
-    },
+    // server: {
+    //     host: '0.0.0.0',
+    //     port: 5173,
+    //     cors: true,
+    //     hmr: {
+    //         host: '10.42.0.1',
+    //     },
+    // },
     esbuild: {
         jsx: 'automatic',
     },

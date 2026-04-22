@@ -97,6 +97,21 @@ export default function BarcodeScannerModal({
     const activeTimeoutRef = useRef<number | null>(null);
     const countdownIntervalRef = useRef<number | null>(null);
     const nativeScanSessionRef = useRef(0);
+    // Simpan semua callback ke ref agar tidak masuk dependency array useEffect scanner
+    const onDetectedRef = useRef(onDetected);
+    const onCloseRef = useRef(onClose);
+    const activeDurationSecondsRef = useRef(activeDurationSeconds);
+    const barcodeFormatsRef = useRef(barcodeFormats);
+    const notFoundMessageRef = useRef(notFoundMessage);
+    const requiredDetectionsRef = useRef(requiredDetections);
+    const warmupMsRef = useRef(warmupMs);
+    useEffect(() => { onDetectedRef.current = onDetected; }, [onDetected]);
+    useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+    useEffect(() => { activeDurationSecondsRef.current = activeDurationSeconds; }, [activeDurationSeconds]);
+    useEffect(() => { barcodeFormatsRef.current = barcodeFormats; }, [barcodeFormats]);
+    useEffect(() => { notFoundMessageRef.current = notFoundMessage; }, [notFoundMessage]);
+    useEffect(() => { requiredDetectionsRef.current = requiredDetections; }, [requiredDetections]);
+    useEffect(() => { warmupMsRef.current = warmupMs; }, [warmupMs]);
 
     const persistScannerMode = useCallback((mode: ScannerMode) => {
         if (typeof window === 'undefined') {
@@ -144,7 +159,7 @@ export default function BarcodeScannerModal({
         } catch {
             // Best-effort stop for native scanner.
         }
-    }, [isNativePlatform]);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const getScannerCameraProfile = () => {
         const deviceMemory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 4;
@@ -271,66 +286,53 @@ export default function BarcodeScannerModal({
                 window.clearTimeout(detectLockTimeoutRef.current);
                 detectLockTimeoutRef.current = null;
             }
-
             if (detectSequenceTimeoutRef.current != null) {
                 window.clearTimeout(detectSequenceTimeoutRef.current);
                 detectSequenceTimeoutRef.current = null;
             }
-
             if (activeTimeoutRef.current != null) {
                 window.clearTimeout(activeTimeoutRef.current);
                 activeTimeoutRef.current = null;
             }
-
             if (countdownIntervalRef.current != null) {
                 window.clearInterval(countdownIntervalRef.current);
                 countdownIntervalRef.current = null;
             }
-
             controlsRef.current?.stop();
             controlsRef.current = null;
-
             if (streamRef.current) {
                 streamRef.current.getTracks().forEach((track) => track.stop());
                 streamRef.current = null;
             }
-
             if (videoRef.current) {
                 videoRef.current.srcObject = null;
             }
-
             void stopNativeScanner();
-
             processingRef.current = false;
             candidateCodeRef.current = null;
             candidateCountRef.current = 0;
             warmupUntilRef.current = 0;
-
             if (resetState) {
                 setIsStarting(false);
                 setIsCameraReady(false);
                 setLastDetectedCode(null);
-                setRemainingSeconds(activeDurationSeconds);
+                setRemainingSeconds(activeDurationSecondsRef.current);
             }
         },
-        [activeDurationSeconds, stopNativeScanner]
+        [] // eslint-disable-line react-hooks/exhaustive-deps
     );
 
     const closeScanner = useCallback(() => {
         stopScanner(true);
-        onClose();
-    }, [onClose, stopScanner]);
+        onCloseRef.current();
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const restartScanner = useCallback(() => {
-        if (!isOpen) {
-            return;
-        }
-
         stopScanner();
         setScannerError(null);
         setResultMessage('Memulai ulang scanner...');
         setRestartSeed((prev) => prev + 1);
-    }, [isOpen, stopScanner]);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         const storedMode = readStoredScannerMode();
@@ -374,7 +376,7 @@ export default function BarcodeScannerModal({
 
         let isCancelled = false;
         const codeReader = new BrowserMultiFormatReader();
-        codeReader.possibleFormats = barcodeFormats;
+        codeReader.possibleFormats = barcodeFormatsRef.current;
 
         const start = async () => {
             try {
@@ -489,17 +491,17 @@ export default function BarcodeScannerModal({
 
                 setIsStarting(false);
                 setIsCameraReady(true);
-                warmupUntilRef.current = performance.now() + warmupMs;
+                warmupUntilRef.current = performance.now() + warmupMsRef.current;
 
                 const startedAt = Date.now();
                 activeTimeoutRef.current = window.setTimeout(() => {
                     setResultMessage('Waktu scan habis. Scanner ditutup otomatis.');
                     closeScanner();
-                }, activeDurationSeconds * 1000);
+                }, activeDurationSecondsRef.current * 1000);
 
                 countdownIntervalRef.current = window.setInterval(() => {
                     const elapsed = Math.floor((Date.now() - startedAt) / 1000);
-                    const next = Math.max(0, activeDurationSeconds - elapsed);
+                    const next = Math.max(0, activeDurationSecondsRef.current - elapsed);
                     setRemainingSeconds(next);
                 }, 250);
 
@@ -535,8 +537,8 @@ export default function BarcodeScannerModal({
                             detectSequenceTimeoutRef.current = null;
                         }, 1200);
 
-                        if (candidateCountRef.current < requiredDetections) {
-                            setResultMessage(`Validasi barcode ${candidateCountRef.current}/${requiredDetections}...`);
+                        if (candidateCountRef.current < requiredDetectionsRef.current) {
+                            setResultMessage(`Validasi barcode ${candidateCountRef.current}/${requiredDetectionsRef.current}...`);
                             detectLockTimeoutRef.current = window.setTimeout(() => {
                                 processingRef.current = false;
                                 detectLockTimeoutRef.current = null;
@@ -548,7 +550,7 @@ export default function BarcodeScannerModal({
                         candidateCountRef.current = 0;
 
                         try {
-                            const isMatched = await onDetected(scannedCode);
+                            const isMatched = await onDetectedRef.current(scannedCode);
 
                             if (isMatched) {
                                 setResultMessage(null);
@@ -556,12 +558,17 @@ export default function BarcodeScannerModal({
                                 return;
                             }
 
-                            setResultMessage(notFoundMessage);
+                            setResultMessage(notFoundMessageRef.current);
+                            // Reset candidate agar barcode yang sama bisa langsung di-scan ulang
+                            candidateCodeRef.current = null;
+                            candidateCountRef.current = 0;
                         } catch {
                             setScannerError('Gagal memproses hasil scan. Coba arahkan ulang barcode.');
+                            candidateCodeRef.current = null;
+                            candidateCountRef.current = 0;
                         }
 
-                        // Lepas lock sebentar agar frame berikutnya tidak men-trigger terlalu cepat.
+                        // Lepas lock agar scanner terus mencoba
                         detectLockTimeoutRef.current = window.setTimeout(() => {
                             processingRef.current = false;
                             detectLockTimeoutRef.current = null;
@@ -603,26 +610,16 @@ export default function BarcodeScannerModal({
             stopScanner();
         };
     }, [
-        activeDurationSeconds,
-        barcodeFormats,
-        closeScanner,
         isOpen,
-        notFoundMessage,
-        onDetected,
-        optimizeScannerVideoTrack,
-        pickPreferredRearCameraDeviceId,
-        requiredDetections,
-        restartSeed,
         scannerMode,
-        stopScanner,
-        warmupMs,
-    ]);
+        restartSeed,
+    ]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         return () => {
             stopScanner();
         };
-    }, [stopScanner]);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         if (!isOpen || scannerMode !== 'capacitor') {
@@ -687,7 +684,7 @@ export default function BarcodeScannerModal({
                 setLastDetectedCode(detectedCode);
 
                 try {
-                    const isMatched = await onDetected(detectedCode);
+                    const isMatched = await onDetectedRef.current(detectedCode);
 
                     if (isMatched) {
                         setResultMessage(null);
@@ -695,7 +692,7 @@ export default function BarcodeScannerModal({
                         return;
                     }
 
-                    setResultMessage(notFoundMessage);
+                    setResultMessage(notFoundMessageRef.current);
                 } catch {
                     setScannerError('Gagal memproses hasil scan native. Coba ulangi lagi.');
                 }
@@ -715,7 +712,7 @@ export default function BarcodeScannerModal({
             isCancelled = true;
             void stopNativeScanner();
         };
-    }, [closeScanner, fallbackToWebMode, isNativePlatform, isOpen, notFoundMessage, onDetected, scannerMode, stopNativeScanner]);
+    }, [fallbackToWebMode, isNativePlatform, isOpen, scannerMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
         <AnimatePresence>

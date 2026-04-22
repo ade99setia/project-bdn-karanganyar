@@ -90,6 +90,7 @@ export interface Pagination<T> {
 
 export interface PageProps {
     stocks: Pagination<ProductStockRow>;
+    allStocks: Array<{ product_id: number; warehouse_id: number; quantity: number }>;
     movements: StockMovementRow[];
     products: Product[];
     salesStockSummaries: SalesStockSummaryRow[];

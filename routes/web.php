@@ -18,6 +18,9 @@ use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\NotificationController;
 use Laravel\Fortify\Http\Controllers\TwoFactorAuthenticatedSessionController;
 use App\Http\Controllers\WhatsappController;
+use App\Http\Controllers\POSController;
+use App\Http\Controllers\CashierShiftController;
+use App\Http\Controllers\ReceiptController;
 
 Route::post('/whatsapp/send', [WhatsappController::class, 'send'])->name('whatsapp.send');
 
@@ -55,6 +58,30 @@ Route::middleware(['auth', 'verified'])->prefix('sales')->group(function () {
     Route::post('visits', [SalesVisitController::class, 'store']);
     Route::patch('customers/{id}/update-contact', [SalesVisitController::class, 'updateContact']);
     Route::post('utils/nearby-customers', NearbyCustomerController::class);
+});
+
+// POS Routes
+Route::middleware(['auth', 'verified', 'posAccess'])->prefix('pos')->group(function () {
+    // POS Main Interface
+    Route::get('/', [POSController::class, 'index'])->name('pos.index');
+    Route::get('/products/search', [POSController::class, 'searchProducts'])->name('pos.products.search');
+    Route::post('/cart/preview', [POSController::class, 'previewCart'])->name('pos.cart.preview');
+    Route::post('/transactions/checkout', [POSController::class, 'checkout'])->name('pos.checkout');
+    Route::get('/transactions', [POSController::class, 'transactions'])->name('pos.transactions');
+    Route::get('/transactions/{transaction}', [POSController::class, 'show'])->name('pos.transactions.show');
+    Route::post('/transactions/{transaction}/void', [POSController::class, 'void'])->name('pos.transactions.void');
+
+    // Cashier Shifts
+    Route::get('/shifts/current', [CashierShiftController::class, 'current'])->name('pos.shifts.current');
+    Route::post('/shifts/open', [CashierShiftController::class, 'open'])->name('pos.shifts.open');
+    Route::post('/shifts/close', [CashierShiftController::class, 'close'])->name('pos.shifts.close');
+    Route::get('/shifts', [CashierShiftController::class, 'index'])->name('pos.shifts.index');
+    Route::get('/shifts/{shift}', [CashierShiftController::class, 'show'])->name('pos.shifts.show');
+
+    // Receipts
+    Route::get('/receipts/{transactionNumber}', [ReceiptController::class, 'show'])->name('pos.receipts.show');
+    Route::post('/receipts/{transaction}/send-whatsapp', [ReceiptController::class, 'sendWhatsApp'])->name('pos.receipts.send-whatsapp');
+    Route::get('/receipts/{transaction}/print', [ReceiptController::class, 'print'])->name('pos.receipts.print');
 });
 
 // =======================================================================================================================================

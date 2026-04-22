@@ -2,9 +2,10 @@ import { Capacitor } from '@capacitor/core';
 import { router } from '@inertiajs/react';
 import axios from 'axios';
 import imageCompression from 'browser-image-compression';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import AlertModal from '@/components/modal/alert-modal';
 import VisitInputModal from '@/components/modal/visit-input-modal';
+import { useHidScanner } from '@/hooks/use-hid-scanner';
 
 interface Customer {
     id: number;
@@ -211,6 +212,26 @@ export default function VisitInputModalContainer({
     const [searchQuery, setSearchQuery] = useState('');
     const [showResults, setShowResults] = useState(false);
     const submitLockRef = useRef(false);
+
+    // HID scanner support — deteksi input dari scanner USB/Bluetooth eksternal
+    const handleHidScan = useCallback((code: string) => {
+        if (!isOpen) return;
+        const normalized = code.trim().toUpperCase();
+        const match = products.find(p =>
+            p.sku.toUpperCase() === normalized ||
+            p.sku.toUpperCase().replace(/[^A-Z0-9]/g, '') === normalized.replace(/[^A-Z0-9]/g, '')
+        );
+        if (match) {
+            setTempProdId(String(match.id));
+            setSearchQuery(match.name);
+            setShowResults(false);
+        } else {
+            setSearchQuery(code.trim());
+            setShowResults(true);
+        }
+    }, [isOpen, products]);
+
+    useHidScanner(handleHidScan, isOpen);
 
     useEffect(() => {
         if (!photo) {

@@ -7,35 +7,35 @@ export function OfflineSyncIndicator() {
 
     if (!isOnline) {
         return (
-            <Badge variant="destructive" className="gap-1.5">
+            <Badge className="gap-1.5 bg-red-500/10 text-red-600 border border-red-500/20">
                 <WifiOff className="size-3.5" />
-                Offline
+                OFFLINE
             </Badge>
         );
     }
 
     if (queueCount > 0) {
         return (
-            <Badge variant="secondary" className="gap-1.5">
+            <Badge className="gap-1.5 bg-amber-500/10 text-amber-600 border border-amber-500/20">
                 <Clock3 className="size-3.5" />
-                Queued ({queueCount})
+                QUEUED ({queueCount})
+            </Badge>
+        );
+    }
+
+    if (lastSyncedAt) {
+        return (
+            <Badge className="gap-1.5 bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                <CheckCircle2 className="size-3.5" />
+                SYNCED
             </Badge>
         );
     }
 
     return (
-        <Badge variant="outline" className="gap-1.5">
-            {lastSyncedAt ? (
-                <>
-                    <CheckCircle2 className="size-3.5" />
-                    Synced
-                </>
-            ) : (
-                <>
-                    <Wifi className="size-3.5" />
-                    Online
-                </>
-            )}
+        <Badge className="gap-1.5 bg-blue-500/10 text-blue-600 border border-blue-500/20">
+            <Wifi className="size-3.5" />
+            ONLINE
         </Badge>
     );
 }

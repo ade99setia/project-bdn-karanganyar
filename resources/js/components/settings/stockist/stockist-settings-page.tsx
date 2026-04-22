@@ -26,7 +26,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 export default function StockistSettingsPage() {
-    const { stocks, movements, products, salesStockSummaries, salesUsers, warehouses, filters, flash } = usePage<PageProps>().props;
+    const { stocks, allStocks, movements, products, salesStockSummaries, salesUsers, warehouses, filters, flash } = usePage<PageProps>().props;
     const { isPreviewOpen, previewUrl, openPreview, closePreview } = useImagePreviewModal();
     const { alertConfig, showAlert, closeAlert } = useAlertModal();
 
@@ -143,6 +143,7 @@ export default function StockistSettingsPage() {
                     warehouses={warehouses}
                     products={products}
                     stocks={stocks}
+                    allStocks={allStocks}
                     salesUsers={salesUsers}
                     selectableSalesUsers={selectableSalesUsers}
                     stockAdjustForm={stockAdjustForm}

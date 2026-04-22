@@ -61,7 +61,7 @@ export default function AppLayout({ children, breadcrumbs, ...props }: AppLayout
         <AppLayoutTemplate breadcrumbs={breadcrumbs} {...props}>
             {children}
 
-            <div className="fixed bottom-4 right-4 z-50">
+            <div className="fixed bottom-16 right-4 z-50">
                 <ThemeToggle />
             </div>
 
