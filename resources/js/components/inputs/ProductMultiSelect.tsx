@@ -19,9 +19,12 @@ interface Props {
     onPreviewImage?: (url: string) => void;
     onQueryChange?: (q: string) => void;
     onFocus?: () => void;
+    minHeight?: number;
+    containerClassName?: string;
+    innerClassName?: string;
 }
 
-export default function ProductMultiSelect({ items, value, onChange, label, placeholder = 'Cari...', onPreviewImage, onQueryChange, onFocus }: Props) {
+export default function ProductMultiSelect({ items, value, onChange, label, placeholder = 'Cari...', onPreviewImage, onQueryChange, onFocus, minHeight = 48, containerClassName, innerClassName }: Props) {
     const [query, setQuery] = useState('');
     const [showResults, setShowResults] = useState(false);
     const rootRef = useRef<HTMLDivElement | null>(null);
@@ -71,10 +74,10 @@ export default function ProductMultiSelect({ items, value, onChange, label, plac
                 <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" />
                 <div
                     onClick={() => setShowResults(true)}
-                    className={`w-full pl-12 pr-4 bg-zinc-100 dark:bg-zinc-900 border-none rounded-2xl text-sm font-semibold flex ${showPlaceholder ? 'items-center' : 'items-start'} gap-2 transition-all`}
-                    style={{ resize: 'vertical', minHeight: 48, maxHeight: 240, overflow: 'auto' }}
+                    className={`w-full pl-12 pr-4 border-none rounded-2xl text-sm font-semibold flex ${showPlaceholder ? 'items-center' : 'items-start'} gap-2 transition-all ${containerClassName ?? 'bg-zinc-100 dark:bg-zinc-900'}`}
+                    style={{ resize: 'vertical', minHeight, maxHeight: 240, overflow: 'auto' }}
                 >
-                    <div className={`flex-1 flex flex-wrap ${showPlaceholder ? 'items-center' : 'items-start'} gap-2 min-w-0 p-2`}>
+                    <div className={`flex-1 flex flex-wrap ${showPlaceholder ? 'items-center' : 'items-start'} gap-2 min-w-0 ${innerClassName ?? 'p-2'}`}>
                         {value.length === 0 && !query && (
                             <div className="text-zinc-500 truncate">{placeholder}</div>
                         )}

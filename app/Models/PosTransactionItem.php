@@ -25,6 +25,13 @@ class PosTransactionItem extends Model
         'subtotal' => 'float',
     ];
 
+    protected $appends = ['product_name'];
+
+    public function getProductNameAttribute(): string
+    {
+        return $this->product?->name ?? '(Produk dihapus)';
+    }
+
     public function transaction(): BelongsTo
     {
         return $this->belongsTo(PosTransaction::class, 'pos_transaction_id');

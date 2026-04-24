@@ -1,4 +1,5 @@
 import { ImageIcon } from 'lucide-react';
+import PaginationBar from '@/components/ui/pagination-bar';
 import type { Pagination, ProductStockRow } from './types';
 
 interface Props {
@@ -64,27 +65,13 @@ export default function CurrentStockSection({ stocks, updateFilters, onPreviewIm
                     </tbody>
                 </table>
             </div>
-            <div className="flex items-center justify-between border-t border-gray-200 px-4 py-3 text-sm dark:border-gray-800">
-                <p className="text-gray-600 dark:text-gray-400">
-                    Total data: {stocks.total} | Halaman {stocks.current_page} / {stocks.last_page}
-                </p>
-                <div className="flex gap-2">
-                    <button
-                        disabled={stocks.current_page <= 1}
-                        onClick={() => updateFilters({ page: stocks.current_page - 1 })}
-                        className="rounded-lg border border-gray-300 px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700"
-                    >
-                        Prev
-                    </button>
-                    <button
-                        disabled={stocks.current_page >= stocks.last_page}
-                        onClick={() => updateFilters({ page: stocks.current_page + 1 })}
-                        className="rounded-lg border border-gray-300 px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700"
-                    >
-                        Next
-                    </button>
-                </div>
-            </div>
+            <PaginationBar
+                currentPage={stocks.current_page}
+                lastPage={stocks.last_page}
+                total={stocks.total}
+                perPage={stocks.per_page}
+                onPageChange={(page) => updateFilters({ page })}
+            />
         </section>
     );
 }

@@ -127,7 +127,7 @@ class StockistManagementController extends Controller
                 ->orderBy('name')
                 ->get(),
             'warehouses' => Warehouse::query()
-                ->select('id', 'name', 'code', 'is_active', 'file_path')
+                ->select('id', 'name', 'code', 'is_active', 'file_path', 'address', 'phone', 'receipt_header', 'receipt_footer')
                 ->orderBy('name')
                 ->get(),
             'filters' => [
@@ -141,21 +141,27 @@ class StockistManagementController extends Controller
     public function storeWarehouse(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'code' => ['required', 'string', 'max:100', 'unique:warehouses,code'],
-            'is_active' => ['sometimes', 'boolean'],
+            'name'           => ['required', 'string', 'max:255'],
+            'code'           => ['required', 'string', 'max:100', 'unique:warehouses,code'],
+            'is_active'      => ['sometimes', 'boolean'],
+            'address'        => ['nullable', 'string', 'max:500'],
+            'phone'          => ['nullable', 'string', 'max:50'],
+            'receipt_header' => ['nullable', 'string', 'max:255'],
+            'receipt_footer' => ['nullable', 'string', 'max:255'],
         ]);
 
         $warehouse = Warehouse::query()->create([
-            'name' => trim($validated['name']),
-            'code' => strtoupper(trim($validated['code'])),
-            'is_active' => (bool) ($validated['is_active'] ?? true),
+            'name'           => trim($validated['name']),
+            'code'           => strtoupper(trim($validated['code'])),
+            'is_active'      => (bool) ($validated['is_active'] ?? true),
+            'address'        => $validated['address'] ?? null,
+            'phone'          => $validated['phone'] ?? null,
+            'receipt_header' => $validated['receipt_header'] ?? null,
+            'receipt_footer' => $validated['receipt_footer'] ?? null,
         ]);
 
-        // optional image upload
         if ($request->hasFile('image')) {
-            $file = $request->file('image');
-            $path = $file->store('warehouses', 'public');
+            $path = $request->file('image')->store('warehouses', 'public');
             $warehouse->update(['file_path' => $path]);
         }
 
@@ -165,24 +171,29 @@ class StockistManagementController extends Controller
     public function updateWarehouse(Request $request, Warehouse $warehouse): RedirectResponse
     {
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'code' => ['required', 'string', 'max:100', 'unique:warehouses,code,' . $warehouse->id],
-            'is_active' => ['required', 'boolean'],
+            'name'           => ['required', 'string', 'max:255'],
+            'code'           => ['required', 'string', 'max:100', 'unique:warehouses,code,' . $warehouse->id],
+            'is_active'      => ['required', 'boolean'],
+            'address'        => ['nullable', 'string', 'max:500'],
+            'phone'          => ['nullable', 'string', 'max:50'],
+            'receipt_header' => ['nullable', 'string', 'max:255'],
+            'receipt_footer' => ['nullable', 'string', 'max:255'],
         ]);
 
         $warehouse->update([
-            'name' => trim($validated['name']),
-            'code' => strtoupper(trim($validated['code'])),
-            'is_active' => (bool) $validated['is_active'],
+            'name'           => trim($validated['name']),
+            'code'           => strtoupper(trim($validated['code'])),
+            'is_active'      => (bool) $validated['is_active'],
+            'address'        => $validated['address'] ?? null,
+            'phone'          => $validated['phone'] ?? null,
+            'receipt_header' => $validated['receipt_header'] ?? null,
+            'receipt_footer' => $validated['receipt_footer'] ?? null,
         ]);
 
-        // optional image upload/update
         if ($request->hasFile('image')) {
-            // remove old file if present
             if ($warehouse->file_path) {
                 Storage::disk('public')->delete($warehouse->file_path);
             }
-
             $path = $request->file('image')->store('warehouses', 'public');
             $warehouse->update(['file_path' => $path]);
         }

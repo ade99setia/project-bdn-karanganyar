@@ -14,6 +14,7 @@ interface Props {
     searchPlaceholder?: string;
     emptyLabel?: string;
     className?: string;
+    buttonClassName?: string;
 }
 
 export default function MultiSelectFilter({
@@ -24,6 +25,7 @@ export default function MultiSelectFilter({
     searchPlaceholder = 'Cari data...',
     emptyLabel = 'Data tidak ditemukan',
     className,
+    buttonClassName,
 }: Props) {
     const [isOpen, setIsOpen] = useState(false);
     const [query, setQuery] = useState('');
@@ -73,7 +75,7 @@ export default function MultiSelectFilter({
             <button
                 type="button"
                 onClick={() => setIsOpen((prev) => !prev)}
-                className="flex w-full items-center justify-between gap-3 rounded-xl border border-gray-300 bg-white py-4.5 pl-4 pr-4 text-left focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800"
+                className={buttonClassName ?? "flex w-full items-center justify-between gap-3 rounded-xl border border-gray-300 bg-white py-4.5 pl-4 pr-4 text-left focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-800"}
             >
                 <span className="truncate text-sm text-gray-700 dark:text-gray-200">
                     {selectedLabels.length > 0 ? selectedLabels.join(', ') : placeholder}

@@ -141,7 +141,7 @@ class POSService
                 ]);
             }
 
-            return $transaction->load(['items.product', 'member', 'cashier', 'warehouse']);
+            return $transaction->load(['items.product', 'member.membershipTier', 'cashier', 'warehouse']);
         });
     }
 
@@ -215,10 +215,13 @@ class POSService
      * @param int $limit
      * @return Collection
      */
-    public function searchProducts(?string $query, int $warehouseId, int $limit = 20): Collection
+    public function searchProducts(?string $query, int $warehouseId, int $limit = 20, array $ids = []): Collection
     {
         $query = $query ?? '';
-        return Product::when($query !== '', function ($q) use ($query) {
+        return Product::when($ids !== [], function ($q) use ($ids) {
+                $q->whereIn('id', $ids);
+            })
+            ->when($query !== '' && $ids === [], function ($q) use ($query) {
                 $q->where(function ($q) use ($query) {
                     $q->where('name', 'like', "%{$query}%")
                       ->orWhere('sku', 'like', "%{$query}%");
@@ -226,13 +229,12 @@ class POSService
             })
             ->where('is_active', true)
             ->whereHas('stocks', function ($q) use ($warehouseId) {
-                $q->where('warehouse_id', $warehouseId)
-                  ->where('quantity', '>', 0);
+                $q->where('warehouse_id', $warehouseId);
             })
             ->with(['stocks' => function ($q) use ($warehouseId) {
                 $q->where('warehouse_id', $warehouseId);
             }])
-            ->limit($limit)
+            ->limit($ids !== [] ? count($ids) : $limit)
             ->get();
     }
 }

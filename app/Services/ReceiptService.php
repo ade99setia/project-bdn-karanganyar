@@ -3,120 +3,142 @@
 namespace App\Services;
 
 use App\Models\PosTransaction;
-use App\Services\EvolutionApiService;
 use Illuminate\Support\Facades\Log;
 
 class ReceiptService
 {
-    public function __construct(private ?EvolutionApiService $evolutionApiService = null) {}
+    public function __construct(private EvolutionApiService $evolutionApiService) {}
 
-    /**
-     * Generate transaction number (POS-YYYYMMDD-XXXX)
-     * 
-     * @return string
-     */
+    // ── Transaction number ─────────────────────────────────────────────────
+
     public function generateTransactionNumber(): string
     {
-        $date = now()->format('Ymd');
+        $date   = now()->format('Ymd');
         $prefix = "POS-{$date}-";
-        
-        // Get last transaction number for today
-        $lastTransaction = PosTransaction::where('transaction_number', 'like', "{$prefix}%")
+
+        $last = PosTransaction::where('transaction_number', 'like', "{$prefix}%")
             ->orderBy('transaction_number', 'desc')
             ->first();
 
-        if ($lastTransaction) {
-            // Extract sequence number and increment
-            $lastSequence = (int) substr($lastTransaction->transaction_number, -4);
-            $newSequence = $lastSequence + 1;
-        } else {
-            $newSequence = 1;
-        }
+        $seq = $last ? ((int) substr($last->transaction_number, -4)) + 1 : 1;
 
-        return $prefix . str_pad($newSequence, 4, '0', STR_PAD_LEFT);
+        return $prefix . str_pad($seq, 4, '0', STR_PAD_LEFT);
     }
 
+    // ── WhatsApp ───────────────────────────────────────────────────────────
+
     /**
-     * Send receipt via WhatsApp
-     * 
-     * @param PosTransaction $transaction
-     * @param string $phoneNumber
-     * @return bool
+     * Normalize nomor HP ke format Evolution API (62xxx)
      */
+    private function normalizePhone(string $phone): string
+    {
+        $phone = preg_replace('/\D/', '', $phone); // strip semua non-digit
+
+        if (str_starts_with($phone, '62')) {
+            return $phone; // sudah format internasional
+        }
+        if (str_starts_with($phone, '0')) {
+            return '62' . substr($phone, 1); // 08xxx → 628xxx
+        }
+        // Angka tanpa prefix (8xxx) → tambah 62
+        return '62' . $phone;
+    }
+
     public function sendReceiptViaWhatsApp(PosTransaction $transaction, string $phoneNumber): bool
     {
         try {
-            if (!$this->evolutionApiService) {
-                Log::warning('WhatsApp service not available');
+            $result = $this->evolutionApiService->sendText(
+                $this->normalizePhone($phoneNumber),
+                $this->generateWhatsAppMessage($transaction),
+                1200,
+                true,
+                ['type' => 'pos_receipt', 'transaction_id' => $transaction->id]
+            );
+
+            if (!$result['success']) {
+                Log::warning('WhatsApp receipt send failed', [
+                    'transaction_id' => $transaction->id,
+                    'phone'          => $phoneNumber,
+                    'status'         => $result['status'],
+                    'error'          => $result['error'],
+                ]);
                 return false;
             }
 
-            $message = $this->generateWhatsAppMessage($transaction);
-            
-            // Send message via Evolution API
-            $this->evolutionApiService->sendText($phoneNumber, $message);
-            
             return true;
         } catch (\Exception $e) {
             Log::error('Failed to send receipt via WhatsApp', [
                 'transaction_id' => $transaction->id,
-                'phone' => $phoneNumber,
-                'error' => $e->getMessage(),
+                'phone'          => $phoneNumber,
+                'error'          => $e->getMessage(),
             ]);
-            
             return false;
         }
     }
 
-    /**
-     * Generate WhatsApp message for receipt
-     * 
-     * @param PosTransaction $transaction
-     * @return string
-     */
     private function generateWhatsAppMessage(PosTransaction $transaction): string
     {
-        $storeName = config('app.store_name', 'Toko Kami');
+        // Pakai nama warehouse dari transaksi, fallback ke config
+        $storeName  = $transaction->warehouse?->name ?? config('app.store_name', 'Toko Kami');
+        $footer     = $transaction->warehouse?->receipt_footer ?? 'Terima kasih! 😊';
         $receiptUrl = $this->getReceiptUrl($transaction->transaction_number);
-        
-        $message = "*{$storeName}*\n";
-        $message .= "================================\n\n";
-        $message .= "Terima kasih atas pembelian Anda!\n\n";
-        $message .= "No. Transaksi: *{$transaction->transaction_number}*\n";
-        $message .= "Tanggal: " . $transaction->created_at->format('d/m/Y H:i') . "\n";
-        $message .= "Total: *Rp " . number_format($transaction->grand_total, 0, ',', '.') . "*\n\n";
-        $message .= "Lihat struk lengkap:\n";
-        $message .= $receiptUrl . "\n\n";
-        $message .= "================================\n";
-        $message .= "Belanja lagi ya! 😊";
 
-        return $message;
+        $lines   = [];
+        $lines[] = "*{$storeName}*";
+
+        if ($transaction->warehouse?->address) {
+            $lines[] = $transaction->warehouse->address;
+        }
+        if ($transaction->warehouse?->phone) {
+            $lines[] = "Telp: {$transaction->warehouse->phone}";
+        }
+
+        $lines[] = '';
+        $lines[] = "No. Transaksi: *{$transaction->transaction_number}*";
+        $lines[] = 'Tanggal: ' . $transaction->created_at->format('d/m/Y H:i');
+
+        if ($transaction->member) {
+            $lines[] = "Member: {$transaction->member->name} ({$transaction->member->member_number})";
+        }
+
+        $lines[] = '';
+        $lines[] = '```';
+        foreach ($transaction->items as $item) {
+            $name = $item->product_name ?? ($item->product?->name ?? '-');
+            $lines[] = "{$item->quantity}x {$name}";
+            $lines[] = '   Rp ' . number_format($item->subtotal, 0, ',', '.');
+        }
+        $lines[] = '```';
+
+        if ($transaction->total_discount > 0) {
+            $lines[] = "Diskon: -Rp " . number_format($transaction->total_discount, 0, ',', '.');
+        }
+
+        $lines[] = "*Total: Rp " . number_format($transaction->grand_total, 0, ',', '.') . "*";
+        $lines[] = "Tunai: Rp " . number_format($transaction->cash_received, 0, ',', '.');
+        $lines[] = "Kembali: Rp " . number_format($transaction->cash_change, 0, ',', '.');
+        $lines[] = '';
+        $lines[] = "Struk digital: {$receiptUrl}";
+        $lines[] = '';
+        $lines[] = $footer;
+
+        return implode("\n", $lines);
     }
 
-    /**
-     * Generate receipt HTML for printing
-     * 
-     * @param PosTransaction $transaction
-     * @return string
-     */
+    // ── Print ──────────────────────────────────────────────────────────────
+
     public function generateReceiptHTML(PosTransaction $transaction): string
     {
         return view('receipts.print', [
             'transaction' => $transaction->load(['items.product', 'member', 'cashier', 'warehouse']),
-            'storeName' => config('app.store_name', 'Toko Kami'),
-            'storeAddress' => config('app.store_address', ''),
-            'storePhone' => config('app.store_phone', ''),
         ])->render();
     }
 
-    /**
-     * Get receipt URL
-     * 
-     * @param string $transactionNumber
-     * @return string
-     */
     public function getReceiptUrl(string $transactionNumber): string
     {
-        return url("/pos/receipts/{$transactionNumber}");
+        // Gunakan PUBLIC_APP_URL jika ada (untuk link yang dikirim ke customer)
+        // fallback ke APP_URL
+        $base = rtrim(config('app.public_url', config('app.url')), '/');
+        return "{$base}/pos/receipts/{$transactionNumber}";
     }
 }

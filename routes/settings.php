@@ -111,10 +111,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Product Discounts
     Route::get('settings/membership/tiers/{tier}/discounts', [MembershipController::class, 'indexProductDiscounts'])
         ->name('settings.membership.discounts.index');
-    Route::post('settings/membership/discounts', [MembershipController::class, 'storeProductDiscount'])
+    Route::post('settings/membership/product-discounts', [MembershipController::class, 'storeProductDiscount'])
         ->name('settings.membership.discounts.store');
-    Route::delete('settings/membership/discounts/{discount}', [MembershipController::class, 'destroyProductDiscount'])
+    Route::put('settings/membership/product-discounts/{discount}', [MembershipController::class, 'updateProductDiscount'])
+        ->name('settings.membership.discounts.update');
+    Route::delete('settings/membership/product-discounts/{discount}', [MembershipController::class, 'destroyProductDiscount'])
         ->name('settings.membership.discounts.destroy');
+
+    // Product Promotions (BXGY)
+    Route::post('settings/membership/promotions', [MembershipController::class, 'storePromotion'])
+        ->name('settings.membership.promotions.store');
+    Route::put('settings/membership/promotions/{promotion}', [MembershipController::class, 'updatePromotion'])
+        ->name('settings.membership.promotions.update');
+    Route::delete('settings/membership/promotions/{promotion}', [MembershipController::class, 'destroyPromotion'])
+        ->name('settings.membership.promotions.destroy');
     
     // Members
     Route::post('settings/membership/members', [MembershipController::class, 'storeMember'])

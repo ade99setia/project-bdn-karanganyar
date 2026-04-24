@@ -15,7 +15,8 @@ class POSController extends Controller
 {
     public function __construct(
         private POSService $posService,
-        private ShiftService $shiftService
+        private ShiftService $shiftService,
+        private \App\Services\ReceiptService $receiptService,
     ) {}
 
     /**
@@ -55,7 +56,11 @@ class POSController extends Controller
 
         $products = $this->posService->searchProducts(
             (string) ($request->input('query') ?? ''),
-            $user->warehouse_id
+            $user->warehouse_id,
+            20,
+            $request->filled('ids')
+                ? array_map('intval', explode(',', $request->input('ids')))
+                : []
         );
 
         // Format response with stock info
@@ -133,16 +138,52 @@ class POSController extends Controller
                 $request->cash_received
             );
 
+            // Auto-kirim WA ke member jika punya nomor HP
+            $waAutoSent = false;
+            if ($transaction->member?->phone) {
+                $waAutoSent = $this->receiptService->sendReceiptViaWhatsApp(
+                    $transaction,
+                    $transaction->member->phone
+                );
+            }
+
             return response()->json([
-                'success' => true,
-                'transaction' => $transaction,
-                'message' => 'Transaksi berhasil',
+                'success'      => true,
+                'transaction'  => $transaction,
+                'message'      => 'Transaksi berhasil',
+                'wa_auto_sent' => $waAutoSent,
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'error' => $e->getMessage()
             ], 422);
         }
+    }
+
+    /**
+     * List transactions as JSON (for AJAX — shift history drawer)
+     */
+    public function transactionsJson(Request $request): JsonResponse
+    {
+        $user = auth()->user();
+
+        $query = PosTransaction::with(['items', 'member'])
+            ->where('warehouse_id', $user->warehouse_id);
+
+        if ($request->shift_id) {
+            $query->where('shift_id', $request->shift_id);
+        }
+
+        if ($request->date) {
+            $query->whereDate('created_at', $request->date);
+        }
+
+        $transactions = $query->with(['items.product', 'member'])
+            ->orderBy('created_at', 'desc')
+            ->limit((int) ($request->per_page ?? 50))
+            ->get();
+
+        return response()->json($transactions);
     }
 
     /**

@@ -22,6 +22,13 @@ class Member extends Model
         'is_active' => 'boolean',
     ];
 
+    protected $appends = ['status'];
+
+    public function getStatusAttribute(): string
+    {
+        return $this->is_active ? 'active' : 'inactive';
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

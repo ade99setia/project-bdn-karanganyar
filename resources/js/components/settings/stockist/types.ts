@@ -4,6 +4,10 @@ export interface Warehouse {
     code: string;
     file_path?: string | null;
     is_active: boolean;
+    address?: string | null;
+    phone?: string | null;
+    receipt_header?: string | null;
+    receipt_footer?: string | null;
 }
 
 export interface Product {

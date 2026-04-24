@@ -14,9 +14,12 @@ class StoreProductDiscountRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'membership_tier_id' => 'required|exists:membership_tiers,id',
-            'product_id' => 'required|exists:products,id',
+            'membership_tier_id'  => 'required|exists:membership_tiers,id',
+            'product_id'          => 'required|exists:products,id',
             'discount_percentage' => 'required|numeric|min:0|max:100',
+            'is_active'           => 'boolean',
+            'valid_from'          => 'nullable|date',
+            'valid_until'         => 'nullable|date|after_or_equal:valid_from',
         ];
     }
 }

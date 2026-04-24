@@ -68,6 +68,7 @@ Route::middleware(['auth', 'verified', 'posAccess'])->prefix('pos')->group(funct
     Route::post('/cart/preview', [POSController::class, 'previewCart'])->name('pos.cart.preview');
     Route::post('/transactions/checkout', [POSController::class, 'checkout'])->name('pos.checkout');
     Route::get('/transactions', [POSController::class, 'transactions'])->name('pos.transactions');
+    Route::get('/transactions/list', [POSController::class, 'transactionsJson'])->name('pos.transactions.list');
     Route::get('/transactions/{transaction}', [POSController::class, 'show'])->name('pos.transactions.show');
     Route::post('/transactions/{transaction}/void', [POSController::class, 'void'])->name('pos.transactions.void');
 
@@ -77,12 +78,15 @@ Route::middleware(['auth', 'verified', 'posAccess'])->prefix('pos')->group(funct
     Route::post('/shifts/close', [CashierShiftController::class, 'close'])->name('pos.shifts.close');
     Route::get('/shifts', [CashierShiftController::class, 'index'])->name('pos.shifts.index');
     Route::get('/shifts/{shift}', [CashierShiftController::class, 'show'])->name('pos.shifts.show');
+    Route::get('/shifts/{shift}/report', [CashierShiftController::class, 'report'])->name('pos.shifts.report');
 
-    // Receipts
-    Route::get('/receipts/{transactionNumber}', [ReceiptController::class, 'show'])->name('pos.receipts.show');
-    Route::post('/receipts/{transaction}/send-whatsapp', [ReceiptController::class, 'sendWhatsApp'])->name('pos.receipts.send-whatsapp');
-    Route::get('/receipts/{transaction}/print', [ReceiptController::class, 'print'])->name('pos.receipts.print');
+    // Receipts — butuh auth (kasir/admin)
+    Route::post('/receipts/{transactionNumber}/send-whatsapp', [ReceiptController::class, 'sendWhatsApp'])->name('pos.receipts.send-whatsapp');
+    Route::get('/receipts/{transactionNumber}/print', [ReceiptController::class, 'print'])->name('pos.receipts.print');
 });
+
+// Receipt public — bisa diakses tanpa login (untuk link di WA ke customer)
+Route::get('/pos/receipts/{transactionNumber}', [ReceiptController::class, 'show'])->name('pos.receipts.show');
 
 // =======================================================================================================================================
 

@@ -24,7 +24,8 @@ class UpdateMemberRequest extends FormRequest
             ],
             'phone' => 'required|string|max:20',
             'email' => 'nullable|email|max:255',
-            'membership_tier_id' => 'required|exists:membership_tiers,id',
+            'membership_tier_id' => 'nullable|exists:membership_tiers,id',
+            'is_active' => 'nullable|boolean',
         ];
     }
 }

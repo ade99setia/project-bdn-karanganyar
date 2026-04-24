@@ -81,7 +81,7 @@ class CashierShiftController extends Controller
         }
 
         try {
-            $closedShift = $this->shiftService->closeShift($shift, $request->actual_cash);
+            $closedShift = $this->shiftService->closeShift($shift, $request->closing_balance);
 
             return response()->json([
                 'success' => true,
@@ -130,8 +130,45 @@ class CashierShiftController extends Controller
     }
 
     /**
-     * Show shift detail
+     * Get shift summary/report (for active or closed shift)
      */
+    public function report(CashierShift $shift): JsonResponse
+    {
+        $user = auth()->user();
+
+        if ($shift->warehouse_id !== $user->warehouse_id && !in_array($user->role->name, ['admin', 'supervisor'])) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $transactions = $shift->transactions()
+            ->where('status', 'completed')
+            ->with(['items', 'member'])
+            ->get();
+
+        $voided = $shift->transactions()->where('status', 'voided')->count();
+
+        $totalRevenue    = $transactions->sum('grand_total');
+        $totalDiscount   = $transactions->sum('total_discount');
+        $totalCash       = $transactions->sum('cash_received');
+        $totalChange     = $transactions->sum('cash_change');
+        $totalItems      = $transactions->sum(fn($t) => $t->items->sum('quantity'));
+        $expectedCash    = $this->shiftService->calculateExpectedCash($shift);
+
+        return response()->json([
+            'shift'               => $shift,
+            'total_transactions'  => $transactions->count(),
+            'voided_count'        => $voided,
+            'total_revenue'       => $totalRevenue,
+            'total_discount'      => $totalDiscount,
+            'total_cash_received' => $totalCash,
+            'total_change'        => $totalChange,
+            'total_items_sold'    => $totalItems,
+            'opening_balance'     => $shift->opening_balance,
+            'expected_cash'       => $expectedCash,
+            'actual_cash'         => $shift->actual_cash,
+            'difference'          => $shift->difference,
+        ]);
+    }
     public function show(CashierShift $shift): JsonResponse
     {
         $user = auth()->user();

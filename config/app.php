@@ -54,6 +54,8 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    'public_url' => env('PUBLIC_APP_URL', env('APP_URL', 'http://localhost')),
+
     'android_app_link' => [
         'enabled' => (bool) env('ANDROID_APP_LINK_ENABLED', false),
         'package_name' => env('ANDROID_APP_LINK_PACKAGE_NAME', 'com.example.appbagusdinamikanusantara'),

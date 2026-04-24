@@ -14,37 +14,21 @@ class ReceiptController extends Controller
     public function __construct(private ReceiptService $receiptService) {}
 
     /**
-     * View receipt (requires auth)
+     * Resolve transaction by transaction_number (shared helper)
+     */
+    private function resolveTransaction(string $transactionNumber): PosTransaction
+    {
+        return PosTransaction::where('transaction_number', $transactionNumber)
+            ->with(['items.product', 'member.membershipTier', 'cashier', 'warehouse'])
+            ->firstOrFail();
+    }
+
+    /**
+     * View receipt page — PUBLIC (no auth required, untuk link di WA)
      */
     public function show(string $transactionNumber): Response
     {
-        $transaction = PosTransaction::where('transaction_number', $transactionNumber)
-            ->with(['items.product', 'member', 'cashier', 'warehouse'])
-            ->firstOrFail();
-
-        $user = auth()->user();
-
-        // Check access control
-        $canAccess = false;
-
-        // Admin and supervisor can view all receipts
-        if (in_array($user->role->name, ['admin', 'supervisor'])) {
-            $canAccess = true;
-        }
-
-        // Member can view their own receipts
-        if ($transaction->member_id && $user->member && $user->member->id === $transaction->member_id) {
-            $canAccess = true;
-        }
-
-        // Cashier can view receipts from their warehouse
-        if ($user->role->name === 'kasir' && $transaction->warehouse_id === $user->warehouse_id) {
-            $canAccess = true;
-        }
-
-        if (!$canAccess) {
-            abort(403, 'Anda tidak memiliki akses ke struk ini');
-        }
+        $transaction = $this->resolveTransaction($transactionNumber);
 
         return Inertia::render('receipts/show', [
             'transaction' => $transaction,
@@ -52,52 +36,43 @@ class ReceiptController extends Controller
     }
 
     /**
-     * Resend receipt via WhatsApp
+     * Send receipt via WhatsApp
      */
-    public function sendWhatsApp(PosTransaction $transaction, Request $request): JsonResponse
+    public function sendWhatsApp(string $transactionNumber, Request $request): JsonResponse
     {
         $request->validate([
-            'phone' => 'required|string',
+            'phone_number' => 'required|string',
         ]);
 
+        $transaction = $this->resolveTransaction($transactionNumber);
         $user = auth()->user();
 
-        // Check access
         if ($transaction->warehouse_id !== $user->warehouse_id && !in_array($user->role->name, ['admin', 'supervisor'])) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        $success = $this->receiptService->sendReceiptViaWhatsApp($transaction, $request->phone);
+        $success = $this->receiptService->sendReceiptViaWhatsApp($transaction, $request->phone_number);
 
-        if ($success) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Struk berhasil dikirim via WhatsApp',
-            ]);
-        } else {
-            return response()->json([
-                'error' => 'Gagal mengirim struk via WhatsApp'
-            ], 500);
-        }
+        return $success
+            ? response()->json(['success' => true, 'message' => 'Struk berhasil dikirim via WhatsApp'])
+            : response()->json(['error' => 'Gagal mengirim struk via WhatsApp'], 500);
     }
 
     /**
-     * Get printable receipt HTML
+     * Print receipt view
      */
-    public function print(PosTransaction $transaction): Response
+    public function print(string $transactionNumber): Response
     {
+        $transaction = $this->resolveTransaction($transactionNumber);
         $user = auth()->user();
 
-        // Check access
         if ($transaction->warehouse_id !== $user->warehouse_id && !in_array($user->role->name, ['admin', 'supervisor'])) {
             abort(403);
         }
 
-        $html = $this->receiptService->generateReceiptHTML($transaction);
-
         return Inertia::render('receipts/print', [
-            'transaction' => $transaction->load(['items.product', 'member', 'cashier', 'warehouse']),
-            'receiptHtml' => $html,
+            'transaction' => $transaction,
+            'receiptHtml' => $this->receiptService->generateReceiptHTML($transaction),
         ]);
     }
 }
