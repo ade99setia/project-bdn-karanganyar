@@ -169,60 +169,64 @@ function CartItemRow({ item, index, discountPct, discountAmt, subtotal, onUpdate
             </div>
 
             {/* --- TAMPILAN DESKTOP --- */}
-            <div className="hidden md:flex items-center px-4 py-3 gap-4 relative">
+            <div className="hidden md:flex items-center px-3 py-3 gap-3 relative">
                 <button
                     onClick={onOpenDetail}
                     className="absolute inset-0 w-full h-full text-left hover:bg-gray-50/50 dark:hover:bg-zinc-800/30 transition-colors cursor-pointer z-0"
                     aria-label="Detail Produk"
                 />
 
-                <div className="relative flex items-center gap-4 flex-1 min-w-0 pointer-events-none z-10">
+                {/* Nomor + Gambar + Nama — flex-1 agar menyesuaikan sisa ruang */}
+                <div className="relative flex items-center gap-3 flex-1 min-w-0 pointer-events-none z-10">
                     <div className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center shrink-0 border border-indigo-200 dark:border-indigo-800/50">
                         <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">{index + 1}</span>
                     </div>
-
-                    <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 border border-gray-100 dark:border-zinc-800 bg-gray-50 flex items-center justify-center shadow-sm">
+                    <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-gray-100 dark:border-zinc-800 bg-gray-50 flex items-center justify-center shadow-sm">
                         {item.image
                             ? <img src={`/storage/${item.image}`} alt={item.product_name} className="w-full h-full object-cover" />
-                            : <Package size={20} className="text-gray-300" />
+                            : <Package size={18} className="text-gray-300" />
                         }
                     </div>
-                    <div className="min-w-0">
-                        <p className="text-sm font-bold text-gray-900 dark:text-white truncate uppercase tracking-tight">{item.product_name}</p>
-                        <p className="text-[11px] text-gray-500 font-medium">{fmt(item.unit_price)} / unit</p>
+                    <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-gray-900 dark:text-white truncate uppercase tracking-tight">{item.product_name}</p>
+                        <p className="text-[10px] text-gray-500 font-medium truncate">{fmt(item.unit_price)} / unit</p>
                     </div>
                 </div>
 
-                <div className="relative w-24 text-center pointer-events-none z-10">
-                    <span className={`text-[9px] font-black px-2 py-1 rounded border tracking-wider uppercase ${item.available_stock <= 5
+                {/* Stok — lebar tetap tapi lebih kecil */}
+                <div className="relative shrink-0 pointer-events-none z-10">
+                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border tracking-wider uppercase whitespace-nowrap ${item.available_stock <= 5
                             ? 'bg-red-50 text-red-600 border-red-100 dark:bg-red-900/20 dark:border-red-900/30'
                             : 'bg-gray-50 text-gray-500 border-gray-200 dark:bg-zinc-800 dark:border-zinc-700'
                         }`}>
-                        STOK: {item.available_stock}
+                        {item.available_stock}
                     </span>
                 </div>
 
-                <div className="relative w-32 flex justify-center z-20">
+                {/* Qty control */}
+                <div className="relative shrink-0 flex justify-center z-20">
                     <div className="flex items-center bg-white dark:bg-zinc-950 rounded-lg border border-gray-200 dark:border-zinc-700 shadow-sm overflow-hidden">
-                        <button onClick={() => onUpdateQty(item.product_id, item.quantity - 1)} className="w-8 h-8 flex items-center justify-center hover:bg-red-50 dark:hover:bg-red-900/40 text-gray-400 hover:text-red-500 transition-colors"><Minus size={12} /></button>
-                        <button onClick={onOpenDetail} className="w-10 h-8 flex items-center justify-center text-sm font-black border-x border-gray-200 dark:border-zinc-700 tabular-nums hover:bg-indigo-50 dark:hover:bg-indigo-900/30">{item.quantity}</button>
-                        <button onClick={() => onUpdateQty(item.product_id, item.quantity + 1)} className="w-8 h-8 flex items-center justify-center hover:bg-indigo-50 dark:hover:bg-indigo-900/40 text-gray-400 hover:text-indigo-600 transition-colors"><Plus size={12} /></button>
+                        <button onClick={() => onUpdateQty(item.product_id, item.quantity - 1)} className="w-7 h-7 flex items-center justify-center hover:bg-red-50 dark:hover:bg-red-900/40 text-gray-400 hover:text-red-500 transition-colors"><Minus size={11} /></button>
+                        <button onClick={onOpenDetail} className="min-w-[2rem] px-1 h-7 flex items-center justify-center text-sm font-black border-x border-gray-200 dark:border-zinc-700 tabular-nums hover:bg-indigo-50 dark:hover:bg-indigo-900/30">{item.quantity}</button>
+                        <button onClick={() => onUpdateQty(item.product_id, item.quantity + 1)} className="w-7 h-7 flex items-center justify-center hover:bg-indigo-50 dark:hover:bg-indigo-900/40 text-gray-400 hover:text-indigo-600 transition-colors"><Plus size={11} /></button>
                     </div>
                 </div>
 
-                <div className="relative w-36 text-right pointer-events-none z-10">
+                {/* Subtotal */}
+                <div className="relative shrink-0 text-right pointer-events-none z-10 min-w-[5rem]">
                     <p className="text-sm font-black text-indigo-600 dark:text-indigo-400 tabular-nums">{fmt(subtotal)}</p>
                     {discountAmt > 0 && (
-                        <div className="flex items-center justify-end gap-1.5 mt-0.5">
+                        <div className="flex items-center justify-end gap-1 mt-0.5">
                             <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 dark:bg-emerald-500/20 px-1 rounded">-{discountPct}%</span>
-                            <span className="text-[10px] text-emerald-600 font-bold">-{fmt(discountAmt)}</span>
+                            <span className="text-[10px] text-emerald-600 font-bold whitespace-nowrap">-{fmt(discountAmt)}</span>
                         </div>
                     )}
                 </div>
 
-                <div className="relative w-10 flex justify-end z-20">
-                    <button onClick={() => onRemove(item.product_id)} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/40 rounded-lg transition-all">
-                        <Trash2 size={16} />
+                {/* Hapus */}
+                <div className="relative shrink-0 z-20">
+                    <button onClick={() => onRemove(item.product_id)} className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/40 rounded-lg transition-all">
+                        <Trash2 size={14} />
                     </button>
                 </div>
             </div>

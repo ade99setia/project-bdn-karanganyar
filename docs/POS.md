@@ -143,3 +143,22 @@ EVOLUTION_API_BASE_URL=https://...
 EVOLUTION_API_INSTANCE_NAME=nama-instance
 EVOLUTION_API_KEY=api-key
 ```
+
+
+Ada 3 file yang relevan:
+
+**Tampilan hasil cetak fisik (thermal printer):**
+- `resources/js/lib/escpos.ts` — ESC/POS encoder, mengatur layout teks, logo bitmap, bold, separator, cut yang dikirim ke printer
+
+**Preview di UI website:**
+- `resources/js/components/pos/ReceiptModal.tsx` — popup struk setelah transaksi selesai di POS
+- `resources/js/pages/receipts/print.tsx` — halaman `/pos/receipts/.../print?size=58|80`, sekaligus yang punya tombol Cetak Thermal & Cetak/PDF
+
+**Halaman struk digital (untuk customer/share):**
+- `resources/js/pages/receipts/show.tsx` — halaman publik `/pos/receipts/...`
+
+Jadi kalau mau ubah tampilan:
+- Layout cetak fisik → `escpos.ts` (fungsi `buildEscPos` di `print.tsx` yang merakit urutan kontennya)
+- Preview popup POS → `ReceiptModal.tsx`
+- Halaman print browser → `print.tsx`
+- Struk digital customer → `show.tsx`

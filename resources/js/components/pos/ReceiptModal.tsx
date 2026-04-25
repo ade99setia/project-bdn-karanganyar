@@ -1,7 +1,9 @@
-import { useState, useRef } from 'react';
-import { X, Printer, MessageCircle, Loader2, CheckCircle2, ExternalLink, XCircle, ShoppingCart, Plus, ArrowLeft, Ban } from 'lucide-react';
+import { useState, useRef, useCallback } from 'react';
+import { X, Printer, MessageCircle, Loader2, CheckCircle2, ExternalLink, XCircle, ShoppingCart, Plus, ArrowLeft, Ban, ArrowRight, Usb } from 'lucide-react';
 import axios from 'axios';
 import type { Transaction } from '@/types/pos';
+import { useThermalPrinter } from '@/hooks/use-thermal-printer';
+import { EscPos, loadImageData, type PaperWidth } from '@/lib/escpos';
 
 interface Props {
     transaction: Transaction;
@@ -12,10 +14,11 @@ interface Props {
     onVoid?: (transactionId: number) => Promise<void>;
 }
 
-/** Strip +62 / 62 prefix agar input hanya tampilkan 8xxx */
+/** Strip prefix agar input hanya tampilkan 8xxx (tanpa leading 0, 62, atau +62) */
 function stripPrefix(phone: string): string {
     const digits = phone.replace(/\D/g, '');
-    if (digits.startsWith('62')) return digits.slice(2);
+    if (digits.startsWith('62')) return digits.slice(2);   // 628xxx → 8xxx
+    if (digits.startsWith('0')) return digits.slice(1);    // 08xxx  → 8xxx
     return digits;
 }
 
@@ -36,9 +39,71 @@ export default function ReceiptModal({ transaction, onClose, onNewTransaction, o
     const dateStr = date.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
     const timeStr = date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
-    const handlePrint = (size: '80' | '58' = '80') => {
-        window.open(`/pos/receipts/${transaction.transaction_number}/print?size=${size}`, '_blank', 'width=420,height=700');
-    };
+    const { print, status: printStatus, isSupported: thermalSupported, hasCachedPort } = useThermalPrinter();
+
+    const buildAndPrint = useCallback(async (size: PaperWidth) => {
+        const w = transaction.warehouse;
+        const enc = new EscPos(size);
+
+        enc.align('center');
+        if (logoSrc) {
+            try { const img = await loadImageData(logoSrc, 160); enc.image(img); } catch { /* skip */ }
+        }
+        enc.bold(true).println(w?.name ?? 'Toko').bold(false);
+        if (w?.receipt_header) enc.println(w.receipt_header);
+        if (w?.address) enc.println(w.address);
+        if (w?.phone) enc.println(`Telp: ${w.phone}`);
+
+        enc.doubleSep();
+        enc.align('left');
+        enc.row('No', transaction.transaction_number);
+        enc.row('Tanggal', dateStr);
+        enc.row('Jam', timeStr);
+        if (transaction.cashier) enc.row('Kasir', transaction.cashier.name);
+
+        if (transaction.member) {
+            enc.separator();
+            enc.bold(true).println(`Member: ${transaction.member.name}`).bold(false);
+            enc.println(transaction.member.member_number);
+            if (transaction.member.membership_tier) {
+                enc.println(`Tier: ${transaction.member.membership_tier.name} (-${transaction.member.membership_tier.default_discount_percentage}%)`);
+            }
+        }
+
+        enc.separator();
+        enc.bold(true).itemRow('Item', 'Qty', 'Total').bold(false);
+        enc.separator();
+        for (const item of transaction.items) {
+            enc.itemRow(item.product_name, String(item.quantity), fmt(item.unit_price * item.quantity));
+            if (item.discount_amount > 0) enc.println(`  Diskon: -${fmt(item.discount_amount)}`);
+        }
+
+        enc.separator();
+        enc.row('Subtotal', fmt(transaction.subtotal));
+        if (transaction.total_discount > 0) enc.row('Diskon', `-${fmt(transaction.total_discount)}`);
+        enc.doubleSep();
+        enc.bold(true).row('TOTAL', fmt(transaction.grand_total)).bold(false);
+        enc.doubleSep();
+        enc.row('Tunai', fmt(transaction.cash_received));
+        enc.bold(true).row('Kembali', fmt(transaction.cash_change)).bold(false);
+        enc.separator();
+        enc.align('center');
+        enc.bold(true).println('Terima Kasih!').bold(false);
+        enc.println(w?.receipt_footer ?? 'Belanja lagi ya :)');
+        enc.feed(4).cut();
+
+        await print(enc.build());
+    }, [transaction, logoSrc, dateStr, timeStr, print]);
+
+    const handlePrint = useCallback((size: '80' | '58' = '80') => {
+        const pw = size === '58' ? 58 : 80 as PaperWidth;
+        // Kalau sudah ada port ter-cache → langsung cetak thermal tanpa buka tab baru
+        if (thermalSupported && hasCachedPort) {
+            buildAndPrint(pw);
+        } else {
+            window.open(`/pos/receipts/${transaction.transaction_number}/print?size=${size}`, '_blank', 'width=420,height=700');
+        }
+    }, [thermalSupported, hasCachedPort, buildAndPrint, transaction.transaction_number]);
 
     const handleSendWhatsApp = async () => {
         const phone = phoneNumber.trim();
@@ -167,7 +232,7 @@ export default function ReceiptModal({ transaction, onClose, onNewTransaction, o
                             <CheckCircle2 size={16} className="text-emerald-600" />
                         </div>
                         <div>
-                            <p className="text-sm font-bold text-gray-900 dark:text-white">Transaksi Berhasil</p>
+                            <p className="text-sm font-bold text-gray-900 dark:text-white">Transaksi Berhasil Tersimpan</p>
                             <p className="text-xs text-gray-400">{transaction.transaction_number}</p>
                         </div>
                     </div>
@@ -183,28 +248,29 @@ export default function ReceiptModal({ transaction, onClose, onNewTransaction, o
                 <div className="flex-1 overflow-y-auto">
 
                     {/* Thermal receipt */}
-                    <div ref={receiptRef} className="mx-4 my-4 bg-gray-50 dark:bg-zinc-800/50 rounded-xl border border-gray-200 dark:border-zinc-700 overflow-hidden font-mono text-xs">
+                    <div ref={receiptRef} className="mx-4 my-4 bg-white dark:bg-zinc-900 rounded-xl border border-gray-200 dark:border-zinc-700 overflow-hidden font-mono text-xs shadow-sm">
 
-                        {/* Store header */}
-                        <div className="bg-indigo-600 text-white text-center py-3 px-4">
+                        {/* Store header — hitam putih */}
+                        <div className="text-center py-4 px-4 border-b-2 border-gray-900">
                             {logoSrc && (
-                                <div className="flex justify-center mb-2">
+                                <div className="flex justify-center mb-1">
                                     <img
                                         src={logoSrc}
                                         alt="Logo"
-                                        className="max-h-12 max-w-[120px] object-contain rounded"
+                                        className="max-h-15 max-w-[140px] object-contain"
+                                        // style={{ filter: 'grayscale(100%)' }}
                                     />
                                 </div>
                             )}
-                            <p className="font-bold text-sm tracking-wide">{transaction.warehouse?.name ?? 'Toko'}</p>
+                            <p className="font-bold text-sm tracking-wide text-gray-900 dark:text-white leading-tight">{transaction.warehouse?.name ?? 'Toko'}</p>
                             {transaction.warehouse?.receipt_header && (
-                                <p className="text-indigo-200 text-[10px] mt-0.5">{transaction.warehouse.receipt_header}</p>
+                                <p className="text-gray-500 dark:text-gray-400 text-[10px] mt-0.5">{transaction.warehouse.receipt_header}</p>
                             )}
                             {transaction.warehouse?.address && (
-                                <p className="text-indigo-200 text-[10px] mt-0.5">{transaction.warehouse.address}</p>
+                                <p className="text-gray-500 dark:text-gray-400 text-[10px] mt-0.5">{transaction.warehouse.address}</p>
                             )}
                             {transaction.warehouse?.phone && (
-                                <p className="text-indigo-200 text-[10px]">Telp: {transaction.warehouse.phone}</p>
+                                <p className="text-gray-500 dark:text-gray-400 text-[10px]">Telp: {transaction.warehouse.phone}</p>
                             )}
                         </div>
 
@@ -219,16 +285,18 @@ export default function ReceiptModal({ transaction, onClose, onNewTransaction, o
 
                             {/* Member info */}
                             {transaction.member && (
-                                <div className="border border-dashed border-emerald-300 dark:border-emerald-700 rounded-lg px-3 py-2 bg-emerald-50 dark:bg-emerald-900/20 space-y-0.5">
-                                    <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wide mb-1">Member</p>
-                                    <ReceiptRow label="Nama" value={transaction.member.name} />
+                                <div className="border border-indigo-300 dark:border-indigo-700 rounded-lg px-3 py-2 bg-indigo-50 dark:bg-indigo-900/20 space-y-0.5">
+                                    <p className="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wide mb-1">Member Loyality</p>
+                                    <ReceiptRow label="Nama" value={transaction.member.name} bold />
                                     <ReceiptRow label="No." value={transaction.member.member_number} />
                                     {transaction.member.membership_tier && (
-                                        <ReceiptRow
-                                            label="Tier"
-                                            value={`${transaction.member.membership_tier.name} (-${transaction.member.membership_tier.default_discount_percentage}%)`}
-                                            highlight
-                                        />
+                                        <div className="flex justify-between items-center mt-1 pt-1 border-t border-indigo-200 dark:border-indigo-700">
+                                            <span className="text-gray-500 dark:text-gray-400 text-xs shrink-0">Tier</span>
+                                            <span className="inline-flex items-center gap-1 bg-indigo-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                                {transaction.member.membership_tier.name}
+                                                <span className="opacity-80">· -{transaction.member.membership_tier.default_discount_percentage}%</span>
+                                            </span>
+                                        </div>
                                     )}
                                 </div>
                             )}
@@ -238,11 +306,18 @@ export default function ReceiptModal({ transaction, onClose, onNewTransaction, o
 
                             {/* Items */}
                             <div className="space-y-2">
+                                {/* Header */}
+                                <div className="flex justify-between text-[10px] font-bold text-gray-400 uppercase tracking-wide border-b border-dashed border-gray-200 dark:border-zinc-700 pb-1">
+                                    <span className="flex-1">Item</span>
+                                    <span className="w-8 text-center">Qty</span>
+                                    <span className="w-20 text-right">Total</span>
+                                </div>
                                 {transaction.items.map((item, i) => (
                                     <div key={i}>
                                         <div className="flex justify-between text-gray-800 dark:text-gray-200">
                                             <span className="flex-1 truncate pr-2">{item.product_name}</span>
-                                            <span className="shrink-0">{fmt(item.unit_price * item.quantity)}</span>
+                                            <span className="w-8 text-center text-gray-500 dark:text-gray-400 text-[11px]">{item.quantity}</span>
+                                            <span className="w-20 text-right shrink-0">{fmt(item.unit_price * item.quantity)}</span>
                                         </div>
                                         <div className="flex justify-between text-gray-400 text-[10px] pl-1">
                                             <span>{item.quantity} × {fmt(item.unit_price)}</span>
@@ -293,80 +368,88 @@ export default function ReceiptModal({ transaction, onClose, onNewTransaction, o
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    {/* WhatsApp section */}
-                    <div className="px-4 pb-4 space-y-2">
-                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                            Kirim via WhatsApp
-                        </p>
+                {/* Footer Container - Premium Elegant (Blue Accent) */}
+                <div className="mt-auto border-t border-zinc-200/80 dark:border-zinc-800 bg-white/95 dark:bg-zinc-950/95 backdrop-blur-md shrink-0 p-3.5 space-y-2">
 
-                        {/* Auto-sent banner */}
-                        {waAutoSent && (
-                            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
-                                <CheckCircle2 size={13} className="text-emerald-600 shrink-0" />
-                                <p className="text-xs text-emerald-700 dark:text-emerald-400">
-                                    Struk otomatis terkirim ke member
-                                </p>
-                            </div>
-                        )}
-
-                        <div className="flex gap-2">
-                            <div className="flex-1 flex items-center gap-2 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2 focus-within:ring-2 focus-within:ring-green-500 transition-all">
-                                <span className="text-sm text-gray-400 shrink-0">+62</span>
-                                <input
-                                    type="tel"
-                                    value={phoneNumber}
-                                    onChange={e => { setPhoneNumber(stripPrefix(e.target.value)); setWaSent(false); setWaError(''); }}
-                                    onKeyDown={e => e.key === 'Enter' && handleSendWhatsApp()}
-                                    placeholder="85XXXXXXXXX"
-                                    className="flex-1 bg-transparent text-sm outline-none text-gray-900 dark:text-white placeholder-gray-400"
-                                />
-                            </div>
+                    <div className="space-y-1.5">
+                        <div className="flex items-center gap-2 bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200/80 dark:border-zinc-800 rounded-xl pl-2 pr-1 h-11 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all relative group shadow-sm shadow-zinc-100 dark:shadow-none">
+                            <span className="flex items-center justify-center bg-blue-100 dark:bg-blue-900/40 h-7 px-2.5 rounded text-sm font-semibold text-blue-600 dark:text-blue-400 shrink-0">
+                                ID +62
+                            </span>
+                            <input
+                                type="tel"
+                                value={phoneNumber}
+                                onChange={e => { setPhoneNumber(stripPrefix(e.target.value)); setWaSent(false); setWaError(''); }}
+                                onKeyDown={e => e.key === 'Enter' && handleSendWhatsApp()}
+                                placeholder="85XXXXXXXXX"
+                                className="flex-1 bg-transparent text-sm font-medium outline-none text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 min-w-0 px-1"
+                            />
+                            {waAutoSent && !waError && !waSent && (
+                                <span className="hidden xs:block text-[10px] font-bold text-emerald-600 dark:text-emerald-400 tracking-wide px-2 shrink-0">
+                                    Auto-Send
+                                </span>
+                            )}
                             <button
                                 onClick={handleSendWhatsApp}
                                 disabled={isSending || waSent}
-                                className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center transition-all ${waSent ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600' : 'bg-green-500 hover:bg-green-600 text-white disabled:opacity-50'}`}
+                                className={`h-9 px-3 rounded-lg flex items-center justify-center transition-all shrink-0 ${waSent
+                                    ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400'
+                                    : 'bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:bg-zinc-200 dark:disabled:bg-zinc-800 active:scale-95 shadow-sm shadow-blue-600/20'
+                                    }`}
                             >
-                                {isSending ? <Loader2 size={15} className="animate-spin" /> : waSent ? <CheckCircle2 size={15} /> : <MessageCircle size={15} />}
+                                {isSending ? <Loader2 size={15} className="animate-spin" /> : waSent ? <CheckCircle2 size={16} /> : <MessageCircle size={15} />}
                             </button>
                         </div>
-                        {waError && (
-                            <p className="flex items-center gap-1 text-xs text-red-500">
-                                <XCircle size={11} /> {waError}
-                            </p>
-                        )}
-                        {waSent && !waAutoSent && (
-                            <p className="flex items-center gap-1 text-xs text-emerald-600">
-                                <CheckCircle2 size={11} /> Struk berhasil dikirim
-                            </p>
+                        {(waError || (waSent && !waAutoSent)) && (
+                            <div className="flex items-center gap-1.5 px-1.5 animate-in fade-in slide-in-from-top-1">
+                                <div className={`w-1.5 h-1.5 rounded-full ${waError ? 'bg-red-500' : 'bg-emerald-500'} shadow-[0_0_8px_rgba(0,0,0,0.2)] ${waError ? 'shadow-red-500/50' : 'shadow-emerald-500/50'}`} />
+                                <p className={`text-[11px] font-medium tracking-tight truncate ${waError ? 'text-red-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                                    {waError || "Struk telah dikirim via WhatsApp"}
+                                </p>
+                            </div>
                         )}
                     </div>
-                </div>
 
-                {/* Footer actions */}
-                <div className="px-4 py-3 border-t border-gray-100 dark:border-zinc-800 flex gap-2 shrink-0">
-                    <div className="flex gap-1.5 flex-1">
+                    <div className="flex gap-2.5">
+                        <div className="flex items-center bg-zinc-100/80 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 p-1 rounded-xl h-11 shrink-0">
+                            <div className="px-2 text-zinc-400 flex items-center">
+                                {printStatus === 'connecting' || printStatus === 'printing'
+                                    ? <Loader2 size={15} className="animate-spin text-indigo-500" />
+                                    : printStatus === 'done'
+                                        ? <CheckCircle2 size={15} className="text-emerald-500" />
+                                        : thermalSupported && hasCachedPort
+                                            ? <Usb size={15} className="text-indigo-400" />
+                                            : <Printer size={15} />
+                                }
+                            </div>
+                            <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700 mx-0.5 shrink-0" />
+                            <button
+                                onClick={() => handlePrint('80')}
+                                disabled={printStatus === 'connecting' || printStatus === 'printing'}
+                                className="px-3.5 h-full rounded-lg hover:bg-white dark:hover:bg-zinc-800 hover:shadow-sm text-xs font-semibold text-zinc-600 dark:text-zinc-300 transition-all active:scale-95 disabled:opacity-50"
+                            >
+                                80mm
+                            </button>
+                            <div className="w-px h-5 bg-zinc-300 dark:bg-zinc-700 mx-0.5 shrink-0" />
+                            <button
+                                onClick={() => handlePrint('58')}
+                                disabled={printStatus === 'connecting' || printStatus === 'printing'}
+                                className="px-3.5 h-full rounded-lg hover:bg-white dark:hover:bg-zinc-800 hover:shadow-sm text-xs font-semibold text-zinc-600 dark:text-zinc-300 transition-all active:scale-95 disabled:opacity-50"
+                            >
+                                58mm
+                            </button>
+                        </div>
+
                         <button
-                            onClick={() => handlePrint('80')}
-                            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors"
-                            title="Printer 80mm (standar)"
+                            onClick={() => { onNewTransaction?.(); onClose(); }}
+                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-all active:scale-[0.98] h-11 shadow-md shadow-blue-600/20 flex items-center justify-center gap-2 group border border-transparent"
                         >
-                            <Printer size={13} /> 80mm
-                        </button>
-                        <button
-                            onClick={() => handlePrint('58')}
-                            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors"
-                            title="Printer 58mm (bluetooth/mini)"
-                        >
-                            <Printer size={11} /> 58mm
+                            <span>Selesai</span>
+                            <ArrowRight size={15} className="group-hover:translate-x-0.5 transition-transform" />
                         </button>
                     </div>
-                    <button
-                        onClick={() => { onNewTransaction?.(); onClose(); }}
-                        className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-sm font-bold text-white transition-colors"
-                    >
-                        Selesai
-                    </button>
                 </div>
             </div>
         </div>

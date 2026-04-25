@@ -104,8 +104,8 @@ export default function ReceiptShow({ transaction }: Props) {
 
                         {/* Member Section */}
                         {transaction.member && (
-                            <div className="border border-dashed border-emerald-200 dark:border-emerald-800/50 rounded-xl px-3 py-3 bg-emerald-50/50 dark:bg-emerald-900/10 space-y-1.5 transition-colors">
-                                <p className="text-[9px] font-black text-emerald-600 dark:text-emerald-500 uppercase tracking-[0.1em] flex items-center gap-1.5">
+                            <div className="border border-dashed border-indigo-200 dark:border-indigo-800/50 rounded-xl px-3 py-3 bg-indigo-50/50 dark:bg-indigo-900/10 space-y-1.5 transition-colors">
+                                <p className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-[0.1em] flex items-center gap-1.5">
                                     <User size={10} strokeWidth={3} /> Member Loyalty
                                 </p>
                                 <Row label="Nama" value={transaction.member.name} />
@@ -152,7 +152,7 @@ export default function ReceiptShow({ transaction }: Props) {
                             <div className="space-y-1 text-gray-600 dark:text-gray-400">
                                 <Row label="Subtotal" value={fmt(transaction.subtotal)} />
                                 {transaction.total_discount > 0 && (
-                                    <Row label="Diskon" value={`-${fmt(transaction.total_discount)}`} highlight />
+                                    <Row label="Diskon" value={`-${fmt(transaction.total_discount)}`} success />
                                 )}
                             </div>
 
@@ -225,14 +225,14 @@ export default function ReceiptShow({ transaction }: Props) {
     );
 }
 
-function Row({ label, value, bold, large, highlight }: {
+function Row({ label, value, bold, large, highlight, success }: {
     label: string; value: string;
-    bold?: boolean; large?: boolean; highlight?: boolean;
+    bold?: boolean; large?: boolean; highlight?: boolean; success?: boolean;
 }) {
     return (
         <div className={`flex justify-between items-baseline gap-4 ${large ? 'text-[15px]' : 'text-[11px]'}`}>
             <span className="text-gray-500 dark:text-gray-500 shrink-0 font-medium">{label}</span>
-            <span className={`text-right tabular-nums ${bold ? 'font-black text-gray-950 dark:text-white' : 'font-semibold text-gray-800 dark:text-gray-200'} ${highlight ? 'text-emerald-600 dark:text-emerald-400 font-bold' : ''}`}>
+            <span className={`text-right tabular-nums ${bold ? 'font-black' : 'font-semibold'} ${success ? 'text-emerald-600 dark:text-emerald-400' : highlight ? 'text-indigo-600 dark:text-indigo-400' : bold ? 'text-gray-950 dark:text-white' : 'text-gray-800 dark:text-gray-200'}`}>
                 {value}
             </span>
         </div>

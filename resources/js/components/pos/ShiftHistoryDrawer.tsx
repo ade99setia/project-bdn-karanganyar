@@ -191,7 +191,7 @@ function TransactionRow({ transaction: tx, isVoiding, onView, onVoid, fmt }: Row
     const time = new Date(tx.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
     return (
-        <div className={`px-4 py-3 border-b border-gray-100 dark:border-zinc-800 last:border-0 ${isVoided ? 'opacity-50' : ''}`}>
+        <div className={`px-4 py-3 border-b border-gray-100 dark:border-zinc-800 last:border-0 ${isVoided ? 'opacity-50' : ''} cursor-pointer hover:bg-gray-50 dark:hover:bg-zinc-800/50 transition-colors`} onClick={onView}>
             <div className="flex items-center gap-3">
                 {/* Icon */}
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isVoided ? 'bg-red-100 dark:bg-red-900/20' : 'bg-indigo-100 dark:bg-indigo-900/20'}`}>
@@ -230,16 +230,9 @@ function TransactionRow({ transaction: tx, isVoiding, onView, onVoid, fmt }: Row
 
                 {/* Actions */}
                 <div className="flex items-center gap-1 shrink-0">
-                    <button
-                        onClick={onView}
-                        className="w-7 h-7 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 flex items-center justify-center text-gray-400 hover:text-indigo-600 transition-colors"
-                        title="Lihat struk"
-                    >
-                        <ChevronRight size={14} />
-                    </button>
                     {!isVoided && (
                         <button
-                            onClick={onVoid}
+                            onClick={e => { e.stopPropagation(); onVoid(); }}
                             disabled={isVoiding}
                             className="w-7 h-7 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center justify-center text-gray-300 hover:text-red-500 transition-colors disabled:opacity-50"
                             title="Batalkan transaksi"

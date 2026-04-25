@@ -129,8 +129,13 @@ class ReceiptService
 
     public function generateReceiptHTML(PosTransaction $transaction): string
     {
+        $transaction->load(['items.product', 'member', 'cashier', 'warehouse']);
+
         return view('receipts.print', [
-            'transaction' => $transaction->load(['items.product', 'member', 'cashier', 'warehouse']),
+            'transaction'  => $transaction,
+            'storeName'    => $transaction->warehouse?->name ?? config('app.store_name', 'Toko Kami'),
+            'storeAddress' => $transaction->warehouse?->address ?? '',
+            'storePhone'   => $transaction->warehouse?->phone ?? '',
         ])->render();
     }
 
